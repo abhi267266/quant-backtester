@@ -28,6 +28,8 @@ Now, feed it a CSV file via standard input! Our data handler expects the classic
 
 ### CLI Commands
 
+#### Data Inspection (`inspect`)
+
 **1. Head (Look at the start)**
 Skip the headers and grab the first 10 rows:
 ```bash
@@ -50,6 +52,28 @@ Need to look at the exact moment the market crashed? Extract a highly specific b
 Don't trust the data provider? (You shouldn't). Check the overall row count, start/end dates, and natively run a **Continuity Check** to automatically detect if your exchange secretly skipped intervals or days unannounced!
 ```bash
 ./inspector inspect stats < historical_data.csv
+```
+
+#### Technical Indicators (`sma`, `ema`, `rsi`)
+
+Calculate and display technical indicators on the dataset. Outputs the specified indicator alongside the closing prices. You can specify the indicator period and how many of the latest rows to display.
+
+**5. Simple Moving Average (SMA)**
+Calculate a 14-period SMA and print the last 10 rows:
+```bash
+./inspector sma -period 14 -n 10 < historical_data.csv
+```
+
+**6. Exponential Moving Average (EMA)**
+Calculate a 14-period EMA and print the last 10 rows:
+```bash
+./inspector ema -period 14 -n 10 < historical_data.csv
+```
+
+**7. Relative Strength Index (RSI)**
+Calculate a 14-period RSI and print the last 10 rows:
+```bash
+./inspector rsi -period 14 -n 10 < historical_data.csv
 ```
 
 ## 🧪 Testing and Proving Zero Allocations
