@@ -34,6 +34,7 @@ type DataHandler interface {
 	LoadTail(n int) ([]Bar, error)
 	LoadRange(start, end int) ([]Bar, error)
 	LoadStats() (Stats, error)
+	Stream(visitor func(b Bar, rowIdx int) bool) error
 }
 
 // CSVDataHandler implements DataHandler for CSV sources

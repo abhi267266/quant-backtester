@@ -24,7 +24,7 @@ func TestIndicators(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		indicator Indicator
+		indicator BatchIndicator
 		expected  []int64
 		wantErr   bool
 	}{

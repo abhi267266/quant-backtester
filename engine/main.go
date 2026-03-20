@@ -9,7 +9,9 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/quant-backtester/engine/data"
+	"github.com/quant-backtester/engine/internal/engine"
 	"github.com/quant-backtester/engine/internal/indicators"
+	"github.com/quant-backtester/engine/internal/strategy"
 )
 
 // formatScaledPrice returns a human-readable string for our 10^8 scaled integer
@@ -59,7 +61,7 @@ func printIndicatorTable(bars []data.Bar, values []int64, name string, tailN int
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("expected a subcommand: 'inspect', 'sma', 'ema', 'rsi'")
+		fmt.Println("expected a subcommand: 'inspect', 'sma', 'ema', 'rsi', 'backtest'")
 		os.Exit(1)
 	}
 
@@ -147,7 +149,7 @@ func main() {
 			log.Fatalf("failed to load data: %v", err)
 		}
 
-		var ind indicators.Indicator
+		var ind indicators.BatchIndicator
 		var name string
 		switch subcommand {
 		case "sma":
@@ -167,6 +169,23 @@ func main() {
 		}
 
 		printIndicatorTable(bars, results, name, *n)
+
+	case "backtest":
+		cmd := flag.NewFlagSet(subcommand, flag.ExitOnError)
+		short := cmd.Int("short", 5, "Short SMA period")
+		long := cmd.Int("long", 10, "Long SMA period")
+
+		cmd.Parse(os.Args[2:])
+
+		strat := strategy.NewSMACrossover(*short, *long)
+		
+		fmt.Printf("Starting backtest with SMACrossover (Short: %d, Long: %d)...\n", *short, *long)
+		
+		err := engine.Run(handler, strat)
+		if err != nil {
+			log.Fatalf("backtest failure: %v", err)
+		}
+
 	default:
 		fmt.Printf("unknown command: %s\n", subcommand)
 		os.Exit(1)
