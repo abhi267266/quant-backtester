@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/quant-backtester/engine/data"
-	"github.com/quant-backtester/engine/internal/strategy"
+	"github.com/quant-backtester/engine/internal/event"
 )
 
 // Helper to quickly assert equity invariant
@@ -16,6 +16,22 @@ func assertInvariant(t *testing.T, p *Portfolio, currentPrice int64) {
 	if expectedEquity != actualEquity {
 		t.Errorf("Invariant failed! Expected Equity: %d, Actual Equity: %d. (Init: %d, Realized: %d, Unrealized: %d)",
 			expectedEquity, actualEquity, p.InitialCapital, p.RealizedPnL, p.UnrealizedPnL(currentPrice))
+	}
+}
+
+// simulateExecution executes the event pipeline strictly validating queues natively
+func simulateExecution(p *Portfolio, direction string, price int64, now time.Time) {
+	bus := event.NewEventQueue()
+	p.UpdateSignal(&event.SignalEvent{Direction: direction, Price: price, Time: now}, bus)
+	if !bus.IsEmpty() {
+		order := bus.Pop().(*event.OrderEvent)
+		p.UpdateFill(&event.FillEvent{
+			Direction: order.Direction,
+			Qty:       order.Qty,
+			Price:     order.Price,
+			Cost:      order.Qty * order.Price,
+			Time:      order.Time,
+		})
 	}
 }
 
@@ -39,10 +55,7 @@ func TestBuyExecution(t *testing.T) {
 	price := int64(3 * data.Decimals) // 3.00
 	now := time.Now()
 
-	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: price}, now, price)
-
-	// qty = 10 / 3 = 3 units.
-	// Cost = 3 * 3 = 9. Remaining Cash = 1.
+	simulateExecution(p, "BUY", price, now)
 
 	if p.PositionSize != 3 {
 		t.Errorf("expected 3 units, got %d", p.PositionSize)
@@ -62,20 +75,15 @@ func TestSellExecution(t *testing.T) {
 	now := time.Now()
 
 	buyPrice := int64(3 * data.Decimals)
-	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: buyPrice}, now, buyPrice)
+	simulateExecution(p, "BUY", buyPrice, now)
 
-	// Fast forward to price = 5
 	sellPrice := int64(5 * data.Decimals)
-	p.ProcessSignal(strategy.Signal{Action: strategy.Sell, Price: sellPrice}, now, sellPrice)
+	simulateExecution(p, "SELL", sellPrice, now)
 
 	if p.PositionSize != 0 {
 		t.Errorf("expected 0 units after sell, got %d", p.PositionSize)
 	}
 
-	// units = 3
-	// sell proceeds = 3 * 5 = 15
-	// new cash = 1 + 15 = 16
-	// Realized PnL = (5 - 3) * 3 = 6
 	expectedCash := int64(16 * data.Decimals)
 	if p.Cash != expectedCash {
 		t.Errorf("expected %d cash after sell, got %d", expectedCash, p.Cash)
@@ -95,9 +103,8 @@ func TestZeroCash(t *testing.T) {
 	now := time.Now()
 
 	price := int64(3 * data.Decimals)
-	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: price}, now, price)
+	simulateExecution(p, "BUY", price, now)
 
-	// Cannot buy, cash < price
 	if p.PositionSize != 0 {
 		t.Errorf("expected 0 units, got %d", p.PositionSize)
 	}
@@ -113,25 +120,18 @@ func TestDrawdownLogic(t *testing.T) {
 	p := NewPortfolio(initialCash, nil)
 	now := time.Now()
 
-	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: 10 * data.Decimals}, now, 10*data.Decimals)
-	// Bought 10 units at 10. Cash = 0. Equity = 100.
+	simulateExecution(p, "BUY", 10*data.Decimals, now)
 
-	// Price goes up to 20. Equity = 200. Peak = 200.
 	p.UpdatePrice(20 * data.Decimals)
-
 	if p.PeakEquity != 200*data.Decimals {
 		t.Errorf("expected peak equity 200, got %v", p.PeakEquity)
 	}
 
-	// Price gaps down to 10. Equity = 100. Peak = 200.
-	// Drawdown = Peak - Equity = 100.
 	p.UpdatePrice(10 * data.Decimals)
 	if p.MaxDrawdown != 100*data.Decimals {
 		t.Errorf("expected max drawdown 100, got %v", p.MaxDrawdown)
 	}
 
-	// Price drops to 5. Equity = 50. Peak = 200.
-	// Drawdown = 150.
 	p.UpdatePrice(5 * data.Decimals)
 	if p.MaxDrawdown != 150*data.Decimals {
 		t.Errorf("expected max drawdown 150, got %v", p.MaxDrawdown)
@@ -144,8 +144,6 @@ func BenchmarkPortfolioProcessing(b *testing.B) {
 	initialCash := int64(1000 * data.Decimals)
 	p := NewPortfolio(initialCash, nil)
 	price := int64(10 * data.Decimals)
-	sigBuy := strategy.Signal{Action: strategy.Buy, Price: price}
-	sigSell := strategy.Signal{Action: strategy.Sell, Price: price + data.Decimals}
 	now := time.Now()
 	
 	b.ResetTimer()
@@ -153,9 +151,9 @@ func BenchmarkPortfolioProcessing(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		if i%2 == 0 {
-			p.ProcessSignal(sigBuy, now, price)
+			simulateExecution(p, "BUY", price, now)
 		} else {
-			p.ProcessSignal(sigSell, now, price+data.Decimals)
+			simulateExecution(p, "SELL", price+data.Decimals, now)
 		}
 		p.UpdatePrice(price)
 	}

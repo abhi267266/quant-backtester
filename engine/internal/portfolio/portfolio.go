@@ -1,10 +1,8 @@
 package portfolio
 
 import (
-	"time"
-
+	"github.com/quant-backtester/engine/internal/event"
 	"github.com/quant-backtester/engine/internal/logger"
-	"github.com/quant-backtester/engine/internal/strategy"
 )
 
 // Portfolio manages state with O(1) zero-allocation logic
@@ -58,51 +56,63 @@ func (p *Portfolio) UpdatePrice(currentPrice int64) {
 	}
 }
 
-// ProcessSignal processes a signal and adjusts the portfolio balance and position accordingly
-func (p *Portfolio) ProcessSignal(sig strategy.Signal, ts time.Time, price int64) bool {
-	switch sig.Action {
-	case strategy.Buy:
-		if p.PositionSize == 0 && p.Cash >= price {
-			qty := p.Cash / price // Whole units
+// UpdateSignal validates a SignalEvent natively evaluating cash constraints to push an OrderEvent securely
+func (p *Portfolio) UpdateSignal(sig *event.SignalEvent, bus *event.EventQueue) {
+	if sig.Direction == "BUY" {
+		if p.PositionSize == 0 && p.Cash >= sig.Price {
+			qty := p.Cash / sig.Price
 			if qty > 0 {
-				cost := qty * price
-				p.PositionSize += qty
-				p.CostBasis += cost
-				p.Cash -= cost
-
-				p.logger.LogTrade(logger.TradeEntry{
-					Timestamp:  ts,
-					Side:       string(strategy.Buy),
-					Price:      price,
-					Qty:        qty,
-					TotalValue: cost,
+				bus.Push(&event.OrderEvent{
+					Time:      sig.Time,
+					Direction: "BUY",
+					Qty:       qty,
+					Price:     sig.Price,
 				})
-				return true
 			}
 		}
-	case strategy.Sell:
+	} else if sig.Direction == "SELL" {
 		if p.PositionSize > 0 {
-			proceeds := p.PositionSize * price
-
-			// Calculate realized PnL for this sale
-			pnl := proceeds - p.CostBasis
-			p.RealizedPnL += pnl
-
-			p.logger.LogTrade(logger.TradeEntry{
-				Timestamp:  ts,
-				Side:       string(strategy.Sell),
-				Price:      price,
-				Qty:        p.PositionSize,
-				TotalValue: proceeds,
+			bus.Push(&event.OrderEvent{
+				Time:      sig.Time,
+				Direction: "SELL",
+				Qty:       p.PositionSize,
+				Price:     sig.Price,
 			})
-
-			p.Cash += proceeds
-			p.PositionSize = 0
-			p.CostBasis = 0
-			return true
 		}
-	case strategy.Hold:
-		// do nothing
 	}
-	return false
+}
+
+// UpdateFill rigorously manages exchange broker transactions into accounting states seamlessly integrating scaled bounds
+func (p *Portfolio) UpdateFill(fill *event.FillEvent) {
+	if fill.Direction == "BUY" {
+		p.PositionSize += fill.Qty
+		p.CostBasis += fill.Cost
+		p.Cash -= (fill.Cost + fill.Commission)
+
+		p.logger.LogTrade(logger.TradeEntry{
+			Timestamp:  fill.Time,
+			Side:       "BUY",
+			Price:      fill.Price,
+			Qty:        fill.Qty,
+			TotalValue: fill.Cost,
+		})
+	} else if fill.Direction == "SELL" {
+		proceeds := fill.Cost
+		pnl := proceeds - p.CostBasis
+		p.RealizedPnL += pnl
+
+		p.logger.LogTrade(logger.TradeEntry{
+			Timestamp:  fill.Time,
+			Side:       "SELL",
+			Price:      fill.Price,
+			Qty:        fill.Qty,
+			TotalValue: proceeds,
+		})
+
+		p.Cash += (proceeds - fill.Commission)
+		p.PositionSize -= fill.Qty
+		if p.PositionSize == 0 {
+			p.CostBasis = 0
+		}
+	}
 }

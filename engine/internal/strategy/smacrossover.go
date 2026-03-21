@@ -1,7 +1,7 @@
 package strategy
 
 import (
-	"github.com/quant-backtester/engine/data"
+	"github.com/quant-backtester/engine/internal/event"
 	"github.com/quant-backtester/engine/internal/indicators"
 )
 
@@ -28,22 +28,20 @@ func NewSMACrossover(shortPeriod, longPeriod int) *SMACrossover {
 	}
 }
 
-// OnBar evaluates the new bar and returns a trading signal
-func (s *SMACrossover) OnBar(bar data.Bar) Signal {
-	currShort, err1 := s.smaShort.Update(bar)
-	currLong, err2 := s.smaLong.Update(bar)
+// CalculateSignal parses internal ticks asynchronously broadcasting cleanly via EDA bounds
+func (s *SMACrossover) CalculateSignal(market *event.MarketEvent, bus *event.EventQueue) {
+	currShort, err1 := s.smaShort.Update(market.Bar)
+	currLong, err2 := s.smaLong.Update(market.Bar)
 
-	// If we don't have enough data for the long SMA, we must hold
 	if err1 != nil || err2 != nil {
-		return Signal{Action: Hold, Price: bar.Close}
+		return
 	}
 
-	// The first valid long SMA value serves as the initial previous state
 	if !s.isReady {
 		s.prevShort = currShort
 		s.prevLong = currLong
 		s.isReady = true
-		return Signal{Action: Hold, Price: bar.Close}
+		return
 	}
 
 	prevShort := s.prevShort
@@ -52,15 +50,21 @@ func (s *SMACrossover) OnBar(bar data.Bar) Signal {
 	s.prevShort = currShort
 	s.prevLong = currLong
 
-	// Cross from below to above -> Buy
 	if prevShort <= prevLong && currShort > currLong {
-		return Signal{Action: Buy, Price: bar.Close}
+		bus.Push(&event.SignalEvent{
+			Time:      market.Bar.Timestamp,
+			Direction: "BUY",
+			Price:     market.Bar.Close,
+		})
+		return
 	}
 
-	// Cross from above to below -> Sell
 	if prevShort >= prevLong && currShort < currLong {
-		return Signal{Action: Sell, Price: bar.Close}
+		bus.Push(&event.SignalEvent{
+			Time:      market.Bar.Timestamp,
+			Direction: "SELL",
+			Price:     market.Bar.Close,
+		})
+		return
 	}
-
-	return Signal{Action: Hold, Price: bar.Close}
 }

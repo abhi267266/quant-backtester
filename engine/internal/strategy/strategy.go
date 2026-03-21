@@ -1,24 +1,12 @@
 package strategy
 
 import (
-	"github.com/quant-backtester/engine/data"
+	"github.com/quant-backtester/engine/internal/event"
 )
 
-type Action string
-
-const (
-    Buy  Action = "BUY"
-    Sell Action = "SELL"
-    Hold Action = "HOLD"
-)
-
-type Signal struct {
-    Action Action
-    Price  int64 // The price at which the signal was generated
-}
-
+// Strategy formally subscribes to MarketEvents natively broadcasting logic onto the EventQueues
 type Strategy interface {
-	OnBar(bar data.Bar) Signal
+	CalculateSignal(market *event.MarketEvent, bus *event.EventQueue)
 }
 
 

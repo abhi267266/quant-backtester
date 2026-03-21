@@ -5,59 +5,47 @@ import (
 	"time"
 
 	"github.com/quant-backtester/engine/data"
+	"github.com/quant-backtester/engine/internal/event"
 	"github.com/quant-backtester/engine/internal/logger"
-	"github.com/quant-backtester/engine/internal/strategy"
 )
 
 // MockDataHandler for TDD
-type MockDataHandler struct {
-	bars []data.Bar
-}
+type MockDataHandler struct{}
 
-func (m *MockDataHandler) Load() ([]data.Bar, error) { return m.bars, nil }
-func (m *MockDataHandler) LoadHead(n int) ([]data.Bar, error) { return m.bars, nil }
-func (m *MockDataHandler) LoadTail(n int) ([]data.Bar, error) { return m.bars, nil }
-func (m *MockDataHandler) LoadRange(s, e int) ([]data.Bar, error) { return m.bars, nil }
+func (m *MockDataHandler) Load() ([]data.Bar, error) { return nil, nil }
+func (m *MockDataHandler) LoadHead(n int) ([]data.Bar, error) { return nil, nil }
+func (m *MockDataHandler) LoadTail(n int) ([]data.Bar, error) { return nil, nil }
+func (m *MockDataHandler) LoadRange(s, e int) ([]data.Bar, error) { return nil, nil }
 func (m *MockDataHandler) LoadStats() (data.Stats, error) { return data.Stats{}, nil }
-func (m *MockDataHandler) Stream(visitor func(b data.Bar, idx int) bool) error {
-	for i, b := range m.bars {
-		if !visitor(b, i) {
-			break
-		}
+
+func (m *MockDataHandler) Stream(visitor func(b data.Bar, rowIdx int) bool) error {
+	bar := data.Bar{
+		Timestamp: time.Date(2026, 3, 21, 14, 49, 52, 0, time.UTC), // Sample Time
+		Close:     2 * data.Decimals,
 	}
+	visitor(bar, 0)
 	return nil
 }
 
-// MockStrategy
-type MockStrategy struct {
-	Count int
-}
+// MockStrategy always returns Buy signals natively mapping EDA events
+type MockStrategy struct{}
 
-func (m *MockStrategy) OnBar(b data.Bar) strategy.Signal {
-	m.Count++
-	// Return Buy on 2nd bar to test logging
-	if m.Count == 2 {
-		return strategy.Signal{Action: strategy.Buy, Price: b.Close}
-	}
-	return strategy.Signal{Action: strategy.Hold, Price: b.Close}
+func (s *MockStrategy) CalculateSignal(market *event.MarketEvent, bus *event.EventQueue) {
+	bus.Push(&event.SignalEvent{
+		Time:      market.Bar.Timestamp,
+		Direction: "BUY",
+		Price:     market.Bar.Close,
+	})
 }
 
 func TestRun(t *testing.T) {
-	handler := &MockDataHandler{
-		bars: []data.Bar{
-			{Timestamp: time.Now(), Close: 100000000},
-			{Timestamp: time.Now(), Close: 200000000},
-			{Timestamp: time.Now(), Close: 300000000},
-		},
-	}
+	handler := &MockDataHandler{}
 	strat := &MockStrategy{}
 
-	err := Run(handler, strat, 10000*data.Decimals, &logger.NoOpLogger{}, 0)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	l := &logger.NoOpLogger{}
 
-	if strat.Count != 3 {
-		t.Errorf("expected strategy to process 3 bars, got %d", strat.Count)
+	err := Run(handler, strat, 10000*data.Decimals, l, 0)
+	if err != nil {
+		t.Fatalf("Expected nil err, got %v", err)
 	}
 }

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/quant-backtester/engine/data"
+	"github.com/quant-backtester/engine/internal/event"
 	"github.com/quant-backtester/engine/internal/logger"
-	"github.com/quant-backtester/engine/internal/strategy"
 )
 
 // MockSliceDataHandler streams a predefined slice of strictly controlled bars.
@@ -14,9 +14,7 @@ type MockSliceDataHandler struct {
 	Bars []data.Bar
 }
 
-func (m *MockSliceDataHandler) Load() ([]data.Bar, error) {
-	return m.Bars, nil
-}
+func (m *MockSliceDataHandler) Load() ([]data.Bar, error) { return m.Bars, nil }
 func (m *MockSliceDataHandler) LoadHead(n int) ([]data.Bar, error) { return m.Bars, nil }
 func (m *MockSliceDataHandler) LoadTail(n int) ([]data.Bar, error) { return m.Bars, nil }
 func (m *MockSliceDataHandler) LoadRange(s, e int) ([]data.Bar, error) { return m.Bars, nil }
@@ -37,16 +35,18 @@ type SpyStrategy struct {
 	CurrentIdx     int
 }
 
-func (s *SpyStrategy) OnBar(bar data.Bar) strategy.Signal {
+func (s *SpyStrategy) CalculateSignal(market *event.MarketEvent, bus *event.EventQueue) {
 	s.CurrentIdx++
 
-	if bar.Close > 100*data.Decimals {
-		s.TriggeredAtIdx = s.CurrentIdx - 1 // 0-indexed alignment with engine rowIdx
+	if market.Bar.Close > 100*data.Decimals {
+		s.TriggeredAtIdx = s.CurrentIdx - 1
 
-		// Once triggered, we just log and return BUY
-		return strategy.Signal{Action: strategy.Buy, Price: bar.Close}
+		bus.Push(&event.SignalEvent{
+			Time:      market.Bar.Timestamp,
+			Direction: "BUY",
+			Price:     market.Bar.Close,
+		})
 	}
-	return strategy.Signal{Action: strategy.Hold, Price: bar.Close}
 }
 
 func TestLookAheadBias(t *testing.T) {
@@ -62,7 +62,6 @@ func TestLookAheadBias(t *testing.T) {
 			Volume:    1000 * data.Decimals,
 		}
 	}
-	// Spike strictly at bar 49 (indices 0..49 = 50 items total)
 	bars[49] = data.Bar{
 		Timestamp: baseTime.Add(49 * 24 * time.Hour),
 		Open:      100 * data.Decimals,
