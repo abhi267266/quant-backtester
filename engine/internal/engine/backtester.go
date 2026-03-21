@@ -21,7 +21,7 @@ func formatScaledPrice(val int64) string {
 func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64, l logger.LogWriter, snapshotInterval int) error {
 	defer l.Flush()
 	table := tablewriter.NewWriter(os.Stdout)
-	table.Header("Timestamp", "Action", "Price", "Capital")
+	table.Header("Timestamp", "Action", "Price", "Capital", "Cash", "CostBasis", "PositionSize")
 
 	hasSignals := false
 	port := portfolio.NewPortfolio(initialCash, l)
@@ -50,6 +50,9 @@ func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64, l log
 				string(signal.Action),
 				formatScaledPrice(signal.Price),
 				formatScaledPrice(port.GetAccountValue(b.Close)),
+				formatScaledPrice(port.Cash),
+				formatScaledPrice(port.CostBasis),
+				fmt.Sprintf("%d", port.PositionSize),
 			)
 		}
 		return true // continue streaming
