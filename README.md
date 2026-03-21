@@ -6,10 +6,11 @@ We don't do `float64` here. We do **hardcore, scaled `int64` fixed-point math** 
 
 ## 🛠 What's Inside?
 
-Currently, this repository houses **Phase 1** of our high-performance trading engine architecture:
+Currently, this repository houses our high-performance trading engine architecture:
 - **`data` Package:** A lightning-fast, zero-allocation-per-bar CSV stream reader. It handles huge datasets like a champ without storing everything in RAM.
 - **`indicators` Package:** SMA, EMA, and RSI built directly on top of 128-bit integer math and Wilder's True Sum. Recently restructured into highly modular files, now fully equipped with $O(1)$ `StatefulIndicator` update processing alongside the legacy `BatchIndicator` logic!
-- **`strategy` Package:** (NEW!) Features `SMACrossover` rigorously tested via Strict TDD protocols, built natively linking to our lightning-fast $O(1)$ stateful pipeline.
+- **`portfolio` Package:** (NEW!) A zero-allocation, $O(1)$ portfolio accounting layer that tracks fixed-point Cash, Cost Basis, Peak Equity, Realized PnL, and Max Drawdown dynamically across tick data!
+- **`strategy` Package:** Features `SMACrossover` rigorously tested via Strict TDD protocols, built natively linking to our lightning-fast $O(1)$ stateful pipeline.
 - **The CLI Inspector:** A gorgeous terminal interface to preview your data without accidentally loading a 50GB CSV file directly into memory and melting your laptop.
 
 ## 🕵️‍♂️ The CLI Inspector (Executable Handling)
@@ -75,6 +76,20 @@ Calculate a 14-period EMA and print the last 10 rows:
 Calculate a 14-period RSI and print the last 10 rows:
 ```bash
 ./inspector rsi -period 14 -n 10 < historical_data.csv
+```
+
+#### Full Strategy Backtesting (`backtest`)
+
+**8. Run a Stateful Backtest with Performance Summary**
+Run a complete `SMACrossover` strategy natively streamed through our $O(1)$ zero-allocation `portfolio` package. It will print trade signals dynamically and output a beautifully formatted Performance Summary containing your Final Equity, Net Profit, and Max Drawdown dynamically calculated per-tick!
+
+**Available Options:**
+- `-short`: The period for the fast Simple Moving Average (default: 5).
+- `-long`: The period for the slow Simple Moving Average (default: 10).
+- `-capital`: The initial simulated capital to fund the portfolio (default: 10000.0).
+
+```bash
+./inspector backtest -short 5 -long 20 -capital 25000 < historical_data.csv
 ```
 
 ## 🧪 Testing and Proving Zero Allocations

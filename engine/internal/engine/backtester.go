@@ -7,6 +7,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/quant-backtester/engine/data"
+	"github.com/quant-backtester/engine/internal/portfolio"
 	"github.com/quant-backtester/engine/internal/strategy"
 )
 
@@ -16,14 +17,20 @@ func formatScaledPrice(val int64) string {
 }
 
 // Run executes the given strategy streamingly over the DataHandler internally
-func Run(handler data.DataHandler, s strategy.Strategy) error {
+func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header("Timestamp", "Action", "Price")
 
 	hasSignals := false
+	port := portfolio.NewPortfolio(initialCash)
+	var lastClose int64
 
 	err := handler.Stream(func(b data.Bar, rowIdx int) bool {
+		lastClose = b.Close
+		
 		signal := s.OnBar(b)
+		port.ProcessSignal(signal, b.Close)
+		port.UpdatePrice(b.Close)
 
 		if signal.Action != strategy.Hold {
 			hasSignals = true
@@ -46,6 +53,18 @@ func Run(handler data.DataHandler, s strategy.Strategy) error {
 	} else {
 		fmt.Println("\n--- Backtest Complete (No Trading Signals) ---")
 	}
+
+	finalEquity := port.GetAccountValue(lastClose)
+	netProfit := finalEquity - port.InitialCapital
+
+	fmt.Println("\n--- Performance Summary ---")
+	summary := tablewriter.NewWriter(os.Stdout)
+	summary.Header("Metric", "Value")
+	summary.Append("Initial Capital", formatScaledPrice(port.InitialCapital))
+	summary.Append("Final Equity", formatScaledPrice(finalEquity))
+	summary.Append("Net Profit", formatScaledPrice(netProfit))
+	summary.Append("Max Drawdown", formatScaledPrice(port.MaxDrawdown))
+	summary.Render()
 
 	return nil
 }

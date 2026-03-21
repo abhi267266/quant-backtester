@@ -174,14 +174,16 @@ func main() {
 		cmd := flag.NewFlagSet(subcommand, flag.ExitOnError)
 		short := cmd.Int("short", 5, "Short SMA period")
 		long := cmd.Int("long", 10, "Long SMA period")
+		capital := cmd.Float64("capital", 10000.0, "Initial capital (in standard currency)")
 
 		cmd.Parse(os.Args[2:])
 
 		strat := strategy.NewSMACrossover(*short, *long)
+		initialCash := int64(*capital * float64(data.Decimals))
 		
-		fmt.Printf("Starting backtest with SMACrossover (Short: %d, Long: %d)...\n", *short, *long)
+		fmt.Printf("Starting backtest with SMACrossover (Short: %d, Long: %d, Initial Capital: %.2f)...\n", *short, *long, *capital)
 		
-		err := engine.Run(handler, strat)
+		err := engine.Run(handler, strat, initialCash)
 		if err != nil {
 			log.Fatalf("backtest failure: %v", err)
 		}

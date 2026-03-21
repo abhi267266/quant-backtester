@@ -51,7 +51,7 @@ func TestRun(t *testing.T) {
 	}
 	strat := &MockStrategy{}
 
-	err := Run(handler, strat)
+	err := Run(handler, strat, 10000*data.Decimals)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
