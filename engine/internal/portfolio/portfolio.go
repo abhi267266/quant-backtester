@@ -59,10 +59,10 @@ func (p *Portfolio) UpdatePrice(currentPrice int64) {
 }
 
 // ProcessSignal processes a signal and adjusts the portfolio balance and position accordingly
-func (p *Portfolio) ProcessSignal(sig strategy.Signal, ts time.Time, price int64) {
+func (p *Portfolio) ProcessSignal(sig strategy.Signal, ts time.Time, price int64) bool {
 	switch sig.Action {
 	case strategy.Buy:
-		if p.Cash >= price {
+		if p.PositionSize == 0 && p.Cash >= price {
 			qty := p.Cash / price // Whole units
 			if qty > 0 {
 				cost := qty * price
@@ -77,6 +77,7 @@ func (p *Portfolio) ProcessSignal(sig strategy.Signal, ts time.Time, price int64
 					Qty:        qty,
 					TotalValue: cost,
 				})
+				return true
 			}
 		}
 	case strategy.Sell:
@@ -98,8 +99,10 @@ func (p *Portfolio) ProcessSignal(sig strategy.Signal, ts time.Time, price int64
 			p.Cash += proceeds
 			p.PositionSize = 0
 			p.CostBasis = 0
+			return true
 		}
 	case strategy.Hold:
 		// do nothing
 	}
+	return false
 }

@@ -31,7 +31,7 @@ func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64, l log
 		lastClose = b.Close
 
 		signal := s.OnBar(b)
-		port.ProcessSignal(signal, b.Timestamp, b.Close)
+		executed := port.ProcessSignal(signal, b.Timestamp, b.Close)
 		port.UpdatePrice(b.Close)
 
 		if snapshotInterval > 0 && rowIdx%snapshotInterval == 0 {
@@ -43,7 +43,7 @@ func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64, l log
 			})
 		}
 
-		if signal.Action != strategy.Hold {
+		if executed {
 			hasSignals = true
 			table.Append(
 				b.Timestamp.Format(time.RFC3339),
