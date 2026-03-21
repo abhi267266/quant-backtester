@@ -25,4 +25,4 @@ jobs:
       run: cd engine && go build -v .
 
     - name: Test
-      run: go test -v .
+      run: cd engine && go test -v .
