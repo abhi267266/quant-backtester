@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/quant-backtester/engine/data"
+	"github.com/quant-backtester/engine/internal/logger"
 	"github.com/quant-backtester/engine/internal/strategy"
 )
 
@@ -51,7 +52,7 @@ func TestRun(t *testing.T) {
 	}
 	strat := &MockStrategy{}
 
-	err := Run(handler, strat, 10000*data.Decimals)
+	err := Run(handler, strat, 10000*data.Decimals, &logger.NoOpLogger{}, 0)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

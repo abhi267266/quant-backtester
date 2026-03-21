@@ -2,6 +2,7 @@ package portfolio
 
 import (
 	"testing"
+	"time"
 
 	"github.com/quant-backtester/engine/data"
 	"github.com/quant-backtester/engine/internal/strategy"
@@ -20,7 +21,7 @@ func assertInvariant(t *testing.T, p *Portfolio, currentPrice int64) {
 
 func TestInitialState(t *testing.T) {
 	initialCash := int64(10000 * data.Decimals)
-	p := NewPortfolio(initialCash)
+	p := NewPortfolio(initialCash, nil)
 
 	if p.Cash != initialCash {
 		t.Errorf("expected initial cash %d, got %d", initialCash, p.Cash)
@@ -34,10 +35,11 @@ func TestInitialState(t *testing.T) {
 
 func TestBuyExecution(t *testing.T) {
 	initialCash := int64(10 * data.Decimals) // 10.00
-	p := NewPortfolio(initialCash)
+	p := NewPortfolio(initialCash, nil)
 	price := int64(3 * data.Decimals) // 3.00
+	now := time.Now()
 
-	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: price}, price)
+	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: price}, now, price)
 
 	// qty = 10 / 3 = 3 units.
 	// Cost = 3 * 3 = 9. Remaining Cash = 1.
@@ -56,14 +58,15 @@ func TestBuyExecution(t *testing.T) {
 
 func TestSellExecution(t *testing.T) {
 	initialCash := int64(10 * data.Decimals)
-	p := NewPortfolio(initialCash)
+	p := NewPortfolio(initialCash, nil)
+	now := time.Now()
 
 	buyPrice := int64(3 * data.Decimals)
-	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: buyPrice}, buyPrice)
+	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: buyPrice}, now, buyPrice)
 
 	// Fast forward to price = 5
 	sellPrice := int64(5 * data.Decimals)
-	p.ProcessSignal(strategy.Signal{Action: strategy.Sell, Price: sellPrice}, sellPrice)
+	p.ProcessSignal(strategy.Signal{Action: strategy.Sell, Price: sellPrice}, now, sellPrice)
 
 	if p.PositionSize != 0 {
 		t.Errorf("expected 0 units after sell, got %d", p.PositionSize)
@@ -88,10 +91,11 @@ func TestSellExecution(t *testing.T) {
 
 func TestZeroCash(t *testing.T) {
 	initialCash := int64(2 * data.Decimals)
-	p := NewPortfolio(initialCash)
+	p := NewPortfolio(initialCash, nil)
+	now := time.Now()
 
 	price := int64(3 * data.Decimals)
-	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: price}, price)
+	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: price}, now, price)
 
 	// Cannot buy, cash < price
 	if p.PositionSize != 0 {
@@ -106,9 +110,10 @@ func TestZeroCash(t *testing.T) {
 
 func TestDrawdownLogic(t *testing.T) {
 	initialCash := int64(100 * data.Decimals)
-	p := NewPortfolio(initialCash)
+	p := NewPortfolio(initialCash, nil)
+	now := time.Now()
 
-	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: 10 * data.Decimals}, 10*data.Decimals)
+	p.ProcessSignal(strategy.Signal{Action: strategy.Buy, Price: 10 * data.Decimals}, now, 10*data.Decimals)
 	// Bought 10 units at 10. Cash = 0. Equity = 100.
 
 	// Price goes up to 20. Equity = 200. Peak = 200.
@@ -137,19 +142,20 @@ func TestDrawdownLogic(t *testing.T) {
 
 func BenchmarkPortfolioProcessing(b *testing.B) {
 	initialCash := int64(1000 * data.Decimals)
-	p := NewPortfolio(initialCash)
+	p := NewPortfolio(initialCash, nil)
 	price := int64(10 * data.Decimals)
 	sigBuy := strategy.Signal{Action: strategy.Buy, Price: price}
 	sigSell := strategy.Signal{Action: strategy.Sell, Price: price + data.Decimals}
+	now := time.Now()
 	
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 		if i%2 == 0 {
-			p.ProcessSignal(sigBuy, price)
+			p.ProcessSignal(sigBuy, now, price)
 		} else {
-			p.ProcessSignal(sigSell, price+data.Decimals)
+			p.ProcessSignal(sigSell, now, price+data.Decimals)
 		}
 		p.UpdatePrice(price)
 	}

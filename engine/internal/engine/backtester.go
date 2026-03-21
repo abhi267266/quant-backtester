@@ -7,6 +7,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/quant-backtester/engine/data"
+	"github.com/quant-backtester/engine/internal/logger"
 	"github.com/quant-backtester/engine/internal/portfolio"
 	"github.com/quant-backtester/engine/internal/strategy"
 )
@@ -17,20 +18,30 @@ func formatScaledPrice(val int64) string {
 }
 
 // Run executes the given strategy streamingly over the DataHandler internally
-func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64) error {
+func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64, l logger.LogWriter, snapshotInterval int) error {
+	defer l.Flush()
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header("Timestamp", "Action", "Price")
 
 	hasSignals := false
-	port := portfolio.NewPortfolio(initialCash)
+	port := portfolio.NewPortfolio(initialCash, l)
 	var lastClose int64
 
 	err := handler.Stream(func(b data.Bar, rowIdx int) bool {
 		lastClose = b.Close
-		
+
 		signal := s.OnBar(b)
-		port.ProcessSignal(signal, b.Close)
+		port.ProcessSignal(signal, b.Timestamp, b.Close)
 		port.UpdatePrice(b.Close)
+
+		if snapshotInterval > 0 && rowIdx%snapshotInterval == 0 {
+			l.LogSnapshot(logger.SnapshotEntry{
+				Timestamp:     b.Timestamp,
+				TotalEquity:   port.GetAccountValue(b.Close),
+				Cash:          port.Cash,
+				UnrealizedPnL: port.UnrealizedPnL(b.Close),
+			})
+		}
 
 		if signal.Action != strategy.Hold {
 			hasSignals = true

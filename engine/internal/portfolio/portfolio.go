@@ -1,6 +1,9 @@
 package portfolio
 
 import (
+	"time"
+
+	"github.com/quant-backtester/engine/internal/logger"
 	"github.com/quant-backtester/engine/internal/strategy"
 )
 
@@ -13,14 +16,19 @@ type Portfolio struct {
 	RealizedPnL    int64
 	PeakEquity     int64
 	MaxDrawdown    int64 // Absolute difference
+	logger         logger.LogWriter
 }
 
 // NewPortfolio initializes an empty portfolio
-func NewPortfolio(initialCash int64) *Portfolio {
+func NewPortfolio(initialCash int64, l logger.LogWriter) *Portfolio {
+	if l == nil {
+		l = &logger.NoOpLogger{}
+	}
 	return &Portfolio{
 		InitialCapital: initialCash,
 		Cash:           initialCash,
 		PeakEquity:     initialCash,
+		logger:         l,
 	}
 }
 
@@ -51,7 +59,7 @@ func (p *Portfolio) UpdatePrice(currentPrice int64) {
 }
 
 // ProcessSignal processes a signal and adjusts the portfolio balance and position accordingly
-func (p *Portfolio) ProcessSignal(sig strategy.Signal, price int64) {
+func (p *Portfolio) ProcessSignal(sig strategy.Signal, ts time.Time, price int64) {
 	switch sig.Action {
 	case strategy.Buy:
 		if p.Cash >= price {
@@ -61,6 +69,14 @@ func (p *Portfolio) ProcessSignal(sig strategy.Signal, price int64) {
 				p.PositionSize += qty
 				p.CostBasis += cost
 				p.Cash -= cost
+
+				p.logger.LogTrade(logger.TradeEntry{
+					Timestamp:  ts,
+					Side:       string(strategy.Buy),
+					Price:      price,
+					Qty:        qty,
+					TotalValue: cost,
+				})
 			}
 		}
 	case strategy.Sell:
@@ -70,6 +86,14 @@ func (p *Portfolio) ProcessSignal(sig strategy.Signal, price int64) {
 			// Calculate realized PnL for this sale
 			pnl := proceeds - p.CostBasis
 			p.RealizedPnL += pnl
+
+			p.logger.LogTrade(logger.TradeEntry{
+				Timestamp:  ts,
+				Side:       string(strategy.Sell),
+				Price:      price,
+				Qty:        p.PositionSize,
+				TotalValue: proceeds,
+			})
 
 			p.Cash += proceeds
 			p.PositionSize = 0

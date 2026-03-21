@@ -11,6 +11,7 @@ import (
 	"github.com/quant-backtester/engine/data"
 	"github.com/quant-backtester/engine/internal/engine"
 	"github.com/quant-backtester/engine/internal/indicators"
+	"github.com/quant-backtester/engine/internal/logger"
 	"github.com/quant-backtester/engine/internal/strategy"
 )
 
@@ -175,15 +176,27 @@ func main() {
 		short := cmd.Int("short", 5, "Short SMA period")
 		long := cmd.Int("long", 10, "Long SMA period")
 		capital := cmd.Float64("capital", 10000.0, "Initial capital (in standard currency)")
+		logFile := cmd.String("log", "", "File to output CSV logs (leave empty for testing/no-op)")
+		interval := cmd.Int("interval", 100, "Interval for equity snapshots")
 
 		cmd.Parse(os.Args[2:])
 
 		strat := strategy.NewSMACrossover(*short, *long)
 		initialCash := int64(*capital * float64(data.Decimals))
-		
+
+		var l logger.LogWriter = &logger.NoOpLogger{}
+		if *logFile != "" {
+			file, err := os.Create(*logFile)
+			if err != nil {
+				log.Fatalf("failed to create log file: %v", err)
+			}
+			defer file.Close()
+			l = logger.NewCSVLogger(file)
+		}
+
 		fmt.Printf("Starting backtest with SMACrossover (Short: %d, Long: %d, Initial Capital: %.2f)...\n", *short, *long, *capital)
-		
-		err := engine.Run(handler, strat, initialCash)
+
+		err := engine.Run(handler, strat, initialCash, l, *interval)
 		if err != nil {
 			log.Fatalf("backtest failure: %v", err)
 		}
