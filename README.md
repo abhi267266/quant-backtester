@@ -6,13 +6,14 @@ We don't do `float64` for critical math. We use scaled `int64` fixed-point repre
 
 ## 🛠 Internal Architecture
 
-The pipeline is entirely engineered to eliminate Garbage Collector (GC) pressure by operating in an $O(1)$ streaming fashion:
+The pipeline is completely engineered on an **Event-Driven Architecture (EDA)** to eliminate Garbage Collector (GC) pressure by operating in an asynchronous, decoupled, $O(1)$ streaming fashion:
 
-- **`data` Package:** A lightning-fast, zero-allocation-per-bar CSV stream reader. It evaluates massive datasets iteratively without storing the entire file into RAM.
+- **`event` Package (The Core EDA):** The central nervous system of the backtester. An ultra-fast, channel-based `EventBus` that handles data decoupling. It standardizes asynchronous communication matching live trading mechanics using core event variants: `MarketEvent`, `SignalEvent`, `OrderEvent`, and `FillEvent`.
+- **`data` Package:** A lightning-fast, zero-allocation-per-bar CSV stream reader. It evaluates massive datasets iteratively without storing the entire file into RAM, publishing `MarketEvent`s directly to the bus.
 - **`indicators` Package:** Features technical indicators (SMA, EMA, RSI) built natively on $10^8$ integer math. It leverages a Stateful `Update()` pipeline that evaluates indicators incrementally slice-free per tick—producing 1,400x speedups natively over batch processing.
-- **`portfolio` Package:** A completely zero-allocation, $O(1)$ portfolio accounting layer tracking fixed-point Cash, Cost Basis, Peak Equity, Realized PnL, Max Drawdown, and precise Position Sizes continuously across trades. It is equipped with strict positional guards against "ghost signals".
+- **`portfolio` Package:** A completely zero-allocation, $O(1)$ portfolio accounting layer tracking fixed-point Cash, Cost Basis, Peak Equity, Realized PnL, Max Drawdown, and precise Position Sizes continuously across trades. It is equipped with strict positional guards against "ghost signals". It listens to `SignalEvent`s and `FillEvent`s.
 - **`logger` Package:** Streams $10^8$ fixed-point values completely separated from the heap memory using a manual fixed-point digit extraction format into CSV files, circumventing Go's alloc-heavy `fmt.Sprintf` completely. Contains a Benchmark-safety `NoOpLogger` validating 0 allocs/op bounds.
-- **`strategy` Package:** Sandbox environment housing your algorithms (e.g., `SMACrossover`). Strategies process incoming price action completely devoid of look-ahead bias through explicit pass-by-value memory isolation constraints.
+- **`strategy` Package:** Sandbox environment housing your algorithms (e.g., `SMACrossover`). Strategies listen to the event bus for `MarketEvent`s, process price action completely devoid of look-ahead bias, and publish `SignalEvent`s back.
 
 ## 🕵️‍♂️ Using the CLI Inspector
 

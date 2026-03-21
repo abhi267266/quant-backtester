@@ -58,7 +58,8 @@ func (p *Portfolio) UpdatePrice(currentPrice int64) {
 
 // UpdateSignal validates a SignalEvent natively evaluating cash constraints to push an OrderEvent securely
 func (p *Portfolio) UpdateSignal(sig *event.SignalEvent, bus *event.EventQueue) {
-	if sig.Direction == "BUY" {
+	switch sig.Direction {
+	case "BUY":
 		if p.PositionSize == 0 && p.Cash >= sig.Price {
 			qty := p.Cash / sig.Price
 			if qty > 0 {
@@ -70,7 +71,7 @@ func (p *Portfolio) UpdateSignal(sig *event.SignalEvent, bus *event.EventQueue) 
 				})
 			}
 		}
-	} else if sig.Direction == "SELL" {
+	case "SELL":
 		if p.PositionSize > 0 {
 			bus.Push(&event.OrderEvent{
 				Time:      sig.Time,
@@ -84,7 +85,8 @@ func (p *Portfolio) UpdateSignal(sig *event.SignalEvent, bus *event.EventQueue) 
 
 // UpdateFill rigorously manages exchange broker transactions into accounting states seamlessly integrating scaled bounds
 func (p *Portfolio) UpdateFill(fill *event.FillEvent) {
-	if fill.Direction == "BUY" {
+	switch fill.Direction {
+	case "BUY":
 		p.PositionSize += fill.Qty
 		p.CostBasis += fill.Cost
 		p.Cash -= (fill.Cost + fill.Commission)
@@ -96,7 +98,7 @@ func (p *Portfolio) UpdateFill(fill *event.FillEvent) {
 			Qty:        fill.Qty,
 			TotalValue: fill.Cost,
 		})
-	} else if fill.Direction == "SELL" {
+	case "SELL":
 		proceeds := fill.Cost
 		pnl := proceeds - p.CostBasis
 		p.RealizedPnL += pnl
