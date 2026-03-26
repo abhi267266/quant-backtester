@@ -71,6 +71,47 @@ Run a robust `SMACrossover` strategy synchronously through the zero-allocation `
 ./inspector backtest -short 5 -long 20 -capital 25000 -interval 50 -log backtest_logs.csv < historical_data.csv
 ```
 
+#### 4. JSON Dynamic Strategies (`dynamic`)
+Design fully custom, mathematically sound trading algorithms without writing any Go logic. Define multiple $O(1)$ indicators dynamically and build complex rule sets out of simple JSON structures.
+
+**Use Case:** 
+If you are iterating through dozens of quantitative ideas (like pairing a fast/slow moving average trend detector alongside an RSI momentum filter), recompiling Go code for every permutation is painstakingly slow. The internal Dynamic Engine parses a JSON array of technical indicators into memory instantly, tracking them side-by-side perfectly. 
+*Note: Placing multiple conditions inside a `buy` or `sell` block intrinsically evaluates as a **Logical AND** (meaning every condition strictly must be true natively at a single bar close for the pipeline to generate a valid Signal).*
+
+**Create a Strategy configuration (`strategy.json`):**
+```json
+{
+  "strategy_name": "SMA_Crossover_with_RSI_Filter",
+  "indicators": [
+    { "id": "fast_ma", "type": "SMA", "params": { "period": 10 } },
+    { "id": "slow_ma", "type": "SMA", "params": { "period": 50 } },
+    { "id": "rsi_main", "type": "RSI", "params": { "period": 14 } }
+  ],
+  "rules": {
+    "buy": [
+      { "type": "crossover", "left_operand": "fast_ma", "right_operand": "slow_ma" },
+      { "type": "greater_than", "left_operand": "rsi_main", "value": 30 }
+    ],
+    "sell": [
+      { "type": "crossunder", "left_operand": "fast_ma", "right_operand": "slow_ma" }
+    ]
+  }
+}
+```
+
+**Run the JSON engine natively:**
+```bash
+./inspector dynamic -config strategy.json -capital 15000 -log strategy_logs.csv < historical_data.csv
+```
+
+#### 5. Interactive Visualization Dashboard
+After executing a backtest using the `-log` flag natively, utilize the built-in python charting interface to render Premium JavaScript Canvas views dynamically displaying your Total Portfolio Equity scaling over time.
+
+```bash
+python3 visualize.py
+```
+*Note: Ensure your `-log` output is configured as `strategy_logs.csv` inside the `engine/` directory before running the renderer.*
+
 ## 🧪 Validating The Engine
 
 We run rigorous Testing, Memory Profiling, and Look-Ahead Bias prevention natively.
