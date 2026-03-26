@@ -1,0 +1,41 @@
+{
+  "strategy_name": "SMA_Crossover_with_RSI_Filter",
+  "indicators": [
+    {
+      "id": "fast_ma",
+      "type": "SMA",
+      "params": { "period": 10 }
+    },
+    {
+      "id": "slow_ma",
+      "type": "SMA",
+      "params": { "period": 50 }
+    },
+    {
+      "id": "rsi_main",
+      "type": "RSI",
+      "params": { "period": 14 }
+    }
+  ],
+  "rules": {
+    "buy": [
+      {
+        "type": "crossover",
+        "left_operand": "fast_ma",
+        "right_operand": "slow_ma"
+      },
+      {
+        "type": "greater_than",
+        "left_operand": "rsi_main",
+        "value": 30
+      }
+    ],
+    "sell": [
+      {
+        "type": "crossunder",
+        "left_operand": "fast_ma",
+        "right_operand": "slow_ma"
+      }
+    ]
+  }
+}

@@ -171,6 +171,48 @@ func main() {
 
 		printIndicatorTable(bars, results, name, *n)
 
+	case "dynamic":
+		cmd := flag.NewFlagSet(subcommand, flag.ExitOnError)
+		capital := cmd.Float64("capital", 10000.0, "Initial capital (in standard currency)")
+		logFile := cmd.String("log", "", "File to output CSV logs")
+		interval := cmd.Int("interval", 100, "Interval for equity snapshots")
+		configFile := cmd.String("config", "", "Path to the JSON strategy configuration file")
+
+		cmd.Parse(os.Args[2:])
+
+		if *configFile == "" {
+			log.Fatalf("config file path is required. Use -config <path>")
+		}
+
+		configBytes, err := os.ReadFile(*configFile)
+		if err != nil {
+			log.Fatalf("failed to read strategy configuration: %v", err)
+		}
+
+		strat, err := strategy.NewDynamicStrategyFromJSON(configBytes)
+		if err != nil {
+			log.Fatalf("failed to load dynamic strategy: %v", err)
+		}
+
+		initialCash := int64(*capital * float64(data.Decimals))
+
+		var l logger.LogWriter = &logger.NoOpLogger{}
+		if *logFile != "" {
+			file, err := os.Create(*logFile)
+			if err != nil {
+				log.Fatalf("failed to create log file: %v", err)
+			}
+			defer file.Close()
+			l = logger.NewCSVLogger(file)
+		}
+
+		fmt.Printf("Starting backtest with Dynamic JSON Strategy (%s, Initial Capital: %.2f)...\n", strat.Name, *capital)
+
+		err = engine.Run(handler, strat, initialCash, l, *interval)
+		if err != nil {
+			log.Fatalf("backtest failure: %v", err)
+		}
+
 	case "backtest":
 		cmd := flag.NewFlagSet(subcommand, flag.ExitOnError)
 		short := cmd.Int("short", 5, "Short SMA period")
