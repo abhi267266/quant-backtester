@@ -1,5 +1,7 @@
 # 🚀 Quant Backtester Engine
 
+![QuantFlow Event-Driven Architecture](assets/backtesting_event_loop_flow.svg)
+
 Welcome to the **Quant Backtester Engine**! This is a high-performance, strictly zero-allocation, fixed-point integer trading engine written in Go. If you're here because floating-point precision errors disrupted your last algorithm, you've come to the right place. 🛥️📉
 
 We don't do `float64` for critical math. We use scaled `int64` fixed-point representations ($10^8$ precision—down to the saturating satoshi!). This prevents classical rounding inaccuracies like `0.1 + 0.2 = 0.30000000000000004` when real money is on the line.
