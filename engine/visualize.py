@@ -1,0 +1,166 @@
+import csv
+import json
+import webbrowser
+import os
+
+def render_chart(csv_file):
+    times = []
+    equity = []
+
+    with open(csv_file, 'r') as f:
+        reader = csv.reader(f)
+        next(reader) # skip header
+        for row in reader:
+            if not row: continue
+            try:
+                # Timestamp,EventType,Price_or_Equity,Qty_or_Cash,TotalValue_or_UnrealizedPnL
+                ts_str = row[0]
+                etype = row[1]
+                val = float(row[2])
+                
+                # We extract the pure Snapshot frames to construct the exact Portfolio curve natively
+                if etype == "SNAPSHOT":
+                    # Shorten timestamp string natively for a cleaner UI
+                    times.append(ts_str[:10]) 
+                    equity.append(val)
+            except Exception:
+                pass
+
+    # Constructing a stunning self-contained Chart.js interface exactly mimicking premium Quant Dashboards 
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>QuantFlow Backtest Results</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            body {{
+                background-color: #0d1117;
+                color: #c9d1d9;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+                margin: 0;
+                padding: 40px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+            }}
+            .container {{
+                width: 100%;
+                max-width: 1200px;
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 16px;
+                padding: 30px;
+                box-shadow: 0 12px 32px rgba(0,0,0,0.8);
+            }}
+            h1 {{ 
+                font-weight: 600; 
+                font-size: 28px; 
+                margin-top: 0;
+                margin-bottom: 24px; 
+                letter-spacing: -0.5px;
+                background: linear-gradient(180deg, #fff, #8b949e);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Dynamic Strategy Performance</h1>
+            <canvas id="equityChart" width="1000" height="400"></canvas>
+        </div>
+        <script>
+            const ctx = document.getElementById('equityChart').getContext('2d');
+            
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(46, 160, 67, 0.4)');
+            gradient.addColorStop(1, 'rgba(46, 160, 67, 0.0)');
+
+            const data = {{
+                labels: {json.dumps(times)},
+                datasets: [{{
+                    label: 'Portfolio Total Equity ($)',
+                    data: {json.dumps(equity)},
+                    borderColor: '#3fb950',
+                    backgroundColor: gradient,
+                    borderWidth: 2.5,
+                    pointRadius: 0,
+                    pointHitRadius: 10,
+                    pointHoverRadius: 4,
+                    pointHoverBackgroundColor: '#3fb950',
+                    fill: true,
+                    tension: 0.1
+                }}]
+            }};
+
+            new Chart(ctx, {{
+                type: 'line',
+                data: data,
+                options: {{
+                    responsive: true,
+                    animation: {{
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    }},
+                    plugins: {{
+                        legend: {{
+                            labels: {{ color: '#8b949e', font: {{ family: "-apple-system", size: 14 }} }}
+                        }},
+                        tooltip: {{
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(22, 27, 34, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#c9d1d9',
+                            borderColor: '#30363d',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {{
+                                label: function(context) {{
+                                    return 'Equity: $' + context.parsed.y.toLocaleString(undefined, {{minimumFractionDigits: 2, maximumFractionDigits: 2}});
+                                }}
+                            }}
+                        }}
+                    }},
+                    scales: {{
+                        x: {{
+                            ticks: {{ color: '#8b949e', maxTicksLimit: 12, font: {{ size: 11 }} }},
+                            grid: {{ color: '#21262d', drawBorder: false }}
+                        }},
+                        y: {{
+                            ticks: {{ 
+                                color: '#8b949e', 
+                                font: {{ size: 11 }},
+                                callback: function(value) {{
+                                    return '$' + value.toLocaleString();
+                                }}
+                            }},
+                            grid: {{ color: '#21262d', drawBorder: false }}
+                        }}
+                    }},
+                    interaction: {{
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }}
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    
+    out_file = "dashboard.html"
+    with open(out_file, "w") as f:
+        f.write(html)
+        
+    print(f"Generated {out_file}! Opening in your browser to visualize the strategy exactly...")
+    webbrowser.open('file://' + os.path.realpath(out_file))
+
+if __name__ == "__main__":
+    render_chart("strategy_logs.csv")
