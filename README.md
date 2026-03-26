@@ -72,11 +72,7 @@ Run a robust `SMACrossover` strategy synchronously through the zero-allocation `
 ```
 
 #### 4. JSON Dynamic Strategies (`dynamic`)
-Design fully custom, mathematically sound trading algorithms without writing any Go logic. Define multiple $O(1)$ indicators dynamically and build complex rule sets out of simple JSON structures.
-
-**Use Case:** 
-If you are iterating through dozens of quantitative ideas (like pairing a fast/slow moving average trend detector alongside an RSI momentum filter), recompiling Go code for every permutation is painstakingly slow. The internal Dynamic Engine parses a JSON array of technical indicators into memory instantly, tracking them side-by-side perfectly. 
-*Note: Placing multiple conditions inside a `buy` or `sell` block intrinsically evaluates as a **Logical AND** (meaning every condition strictly must be true natively at a single bar close for the pipeline to generate a valid Signal).*
+Design fully custom, mathematically sound trading algorithms without writing any Go logic. Define multiple $O(1)$ indicators dynamically and build rule sets (`AND/OR` structures across crossover/crossunder limits).
 
 **Create a Strategy configuration (`strategy.json`):**
 ```json
