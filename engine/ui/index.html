@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Terminal UI</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Lightweight Charts Standalone CDN Pinned to v4 -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- Parser logic -->
+    <script src="parser.js"></script>
+</head>
+<body>
+    <div class="terminal-container">
+        <header class="terminal-header">
+            <div class="title">Trading Terminal</div>
+            <div class="actions">
+                <input type="file" id="csvFileInput" accept=".csv" />
+                <button id="loadBtn" class="btn">Load Logs</button>
+            </div>
+        </header>
+
+        <div class="chart-wrapper">
+            <div id="mainChart" class="chart-pane"></div>
+            <div id="rsiChart" class="chart-pane indicator-pane"></div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

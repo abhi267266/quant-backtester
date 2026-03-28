@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"io"
 	"time"
+
+	"github.com/quant-backtester/engine/data"
 )
 
-// LogWriter defines the interface for logging trades and snapshots without allocating memory
+// LogWriter defines the interface for logging trades, snapshots, and bar data
 type LogWriter interface {
 	LogTrade(t TradeEntry) error
 	LogSnapshot(s SnapshotEntry) error
+	LogBarWithIndicators(b data.Bar, indicatorsString string) error
 	Flush() error
 }
 
@@ -84,8 +87,8 @@ type CSVLogger struct {
 
 func NewCSVLogger(w io.Writer) *CSVLogger {
 	bw := bufio.NewWriter(w)
-	// Write the CSV header describing both trade and snapshot alignments
-	bw.WriteString("Timestamp,EventType,Price_or_Equity,Qty_or_Cash,TotalValue_or_UnrealizedPnL\n")
+	// Write the CSV header describing trade, snapshot, and bar alignments
+	bw.WriteString("Timestamp,EventType,Price_or_Equity,Qty_or_Cash,TotalValue_or_UnrealizedPnL,Open,High,Low,Close,Volume,IndicatorsMetadata\n")
 	return &CSVLogger{w: bw}
 }
 
@@ -127,7 +130,8 @@ func (c *CSVLogger) LogTrade(t TradeEntry) error {
 	if err := WriteFixedPoint(c.w, t.TotalValue); err != nil {
 		return err
 	}
-	if err := c.w.WriteByte('\n'); err != nil {
+	// Append empty columns for Open,High,Low,Close,Volume,IndicatorsMetadata
+	if _, err := c.w.WriteString(",,,,,,,\n"); err != nil {
 		return err
 	}
 	return nil
@@ -161,10 +165,54 @@ func (c *CSVLogger) LogSnapshot(s SnapshotEntry) error {
 	if err := WriteFixedPoint(c.w, s.UnrealizedPnL); err != nil {
 		return err
 	}
-	if err := c.w.WriteByte('\n'); err != nil {
+	// Append empty columns for Open,High,Low,Close,Volume,IndicatorsMetadata
+	if _, err := c.w.WriteString(",,,,,,,\n"); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (c *CSVLogger) LogBarWithIndicators(b data.Bar, indicatorsString string) error {
+	if err := c.WriteTime(b.Timestamp); err != nil {
+		return err
+	}
+	if _, err := c.w.WriteString(",BAR,,,,"); err != nil {
+		return err
+	}
+	if err := WriteFixedPoint(c.w, b.Open); err != nil {
+		return err
+	}
+	if err := c.w.WriteByte(','); err != nil {
+		return err
+	}
+	if err := WriteFixedPoint(c.w, b.High); err != nil {
+		return err
+	}
+	if err := c.w.WriteByte(','); err != nil {
+		return err
+	}
+	if err := WriteFixedPoint(c.w, b.Low); err != nil {
+		return err
+	}
+	if err := c.w.WriteByte(','); err != nil {
+		return err
+	}
+	if err := WriteFixedPoint(c.w, b.Close); err != nil {
+		return err
+	}
+	if err := c.w.WriteByte(','); err != nil {
+		return err
+	}
+	if err := WriteFixedPoint(c.w, b.Volume); err != nil {
+		return err
+	}
+	if err := c.w.WriteByte(','); err != nil {
+		return err
+	}
+	if _, err := c.w.WriteString(indicatorsString); err != nil {
+		return err
+	}
+	return c.w.WriteByte('\n')
 }
 
 func (c *CSVLogger) Flush() error {
@@ -176,4 +224,5 @@ type NoOpLogger struct{}
 
 func (n *NoOpLogger) LogTrade(t TradeEntry) error       { return nil }
 func (n *NoOpLogger) LogSnapshot(s SnapshotEntry) error { return nil }
+func (n *NoOpLogger) LogBarWithIndicators(b data.Bar, indicatorsString string) error { return nil }
 func (n *NoOpLogger) Flush() error                      { return nil }

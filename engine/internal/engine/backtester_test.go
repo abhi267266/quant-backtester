@@ -28,14 +28,18 @@ func (m *MockDataHandler) Stream(visitor func(b data.Bar, rowIdx int) bool) erro
 }
 
 // MockStrategy always returns Buy signals natively mapping EDA events
-type MockStrategy struct{}
+type MockStrategy struct {
+	TriggerBuy bool
+}
 
-func (s *MockStrategy) CalculateSignal(market *event.MarketEvent, bus *event.EventQueue) {
-	bus.Push(&event.SignalEvent{
-		Time:      market.Bar.Timestamp,
-		Direction: "BUY",
-		Price:     market.Bar.Close,
-	})
+func (m *MockStrategy) CalculateSignal(market *event.MarketEvent, bus *event.EventQueue) {
+	if m.TriggerBuy {
+		bus.Push(&event.SignalEvent{Time: market.Bar.Timestamp, Direction: "BUY", Price: market.Bar.Close})
+	}
+}
+
+func (m *MockStrategy) GetIndicators() map[string]int64 {
+	return nil
 }
 
 func TestRun(t *testing.T) {

@@ -13,6 +13,8 @@ type SMACrossover struct {
 	smaShort    indicators.StatefulIndicator
 	smaLong     indicators.StatefulIndicator
 
+	currShort   int64
+	currLong    int64
 	prevShort   int64
 	prevLong    int64
 	isReady     bool
@@ -66,5 +68,13 @@ func (s *SMACrossover) CalculateSignal(market *event.MarketEvent, bus *event.Eve
 			Price:     market.Bar.Close,
 		})
 		return
+	}
+}
+
+// GetIndicators exposes the explicitly instantiated elements mapped
+func (s *SMACrossover) GetIndicators() map[string]int64 {
+	return map[string]int64{
+		"sma_short": s.currShort,
+		"sma_long":  s.currLong,
 	}
 }

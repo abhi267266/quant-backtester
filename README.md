@@ -114,6 +114,18 @@ python3 visualize.py
 ```
 *Note: Ensure your `-log` output is configured as `strategy_logs.csv` inside the `engine/` directory before running the renderer.*
 
+#### 6. Dynamic Trading Terminal UI
+We've introduced a robust, zero-dependency HTML/JS **Trading Terminal UI** utilizing **Lightweight Charts** for deep, interactive chart analysis. The frontend dynamically parses `strategy_logs.csv` directly from the engine. It intelligently renders Candlesticks, multi-indicator overlays (e.g., SMAs automatically mapping to the main price pane), and oscillator indicators (e.g., RSI binding to an isolated sub-pane) without requiring frontend hardcoding. It concurrently plots exact Buy/Sell execution signals visually synced precisely to the candlestick timeline!
+
+**Usage:**
+1. Execute a backtest using the `-log` flag to output local logs (`strategy_logs.csv`).
+2. Serve the `engine/ui/` directory locally using any lightweight HTTP server (e.g., Python's `http.server` to prevent classic file:// CORS errors).
+```bash
+cd engine/ui
+python3 -m http.server 8000
+```
+3. Navigate to [http://localhost:8000](http://localhost:8000) in your browser to experience the dynamic, auto-rendered multi-pane interactive charts.
+
 ## 🧪 Validating The Engine
 
 We run rigorous Testing, Memory Profiling, and Look-Ahead Bias prevention natively.

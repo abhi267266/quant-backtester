@@ -49,6 +49,10 @@ func (s *SpyStrategy) CalculateSignal(market *event.MarketEvent, bus *event.Even
 	}
 }
 
+func (s *SpyStrategy) GetIndicators() map[string]int64 {
+	return nil
+}
+
 func TestLookAheadBias(t *testing.T) {
 	bars := make([]data.Bar, 50)
 	baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)

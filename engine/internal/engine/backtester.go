@@ -3,9 +3,11 @@ package engine
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
+
 	"github.com/quant-backtester/engine/data"
 	"github.com/quant-backtester/engine/internal/event"
 	"github.com/quant-backtester/engine/internal/execution"
@@ -34,7 +36,7 @@ func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64, l log
 	err := handler.Stream(func(b data.Bar, rowIdx int) bool {
 		lastClose = b.Close
 
-		// Initialize pipeline sequence converting Raw Stream to an Asynchronous Event Native Tick Array
+		// Initialize pipeline sequence converting Raw Stream to Asynchronous Event Native Tick Array
 		bus.Push(&event.MarketEvent{Bar: b})
 
 		// Maintain sequence entirely blocking execution ticks identically navigating across state limits securely
@@ -45,6 +47,17 @@ func Run(handler data.DataHandler, s strategy.Strategy, initialCash int64, l log
 			case *event.MarketEvent:
 				port.UpdatePrice(e.Bar.Close) // Persist native accounting value updates identically per tick internally limits isolated
 				s.CalculateSignal(e, bus)
+
+				inds := s.GetIndicators()
+				var sb strings.Builder
+				for k, v := range inds {
+					sb.WriteString(fmt.Sprintf("%s:%.8f|", k, float64(v)/float64(data.Decimals)))
+				}
+				str := sb.String()
+				if len(str) > 0 {
+					str = str[:len(str)-1]
+				}
+				l.LogBarWithIndicators(e.Bar, str)
 			case *event.SignalEvent:
 				port.UpdateSignal(e, bus)
 			case *event.OrderEvent:

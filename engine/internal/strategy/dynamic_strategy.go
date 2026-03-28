@@ -201,3 +201,8 @@ func (ds *DynamicStrategy) CalculateSignal(market *event.MarketEvent, bus *event
 		ds.prevValues[id] = val
 	}
 }
+
+// GetIndicators returns the dynamically bound native indicators correctly 
+func (ds *DynamicStrategy) GetIndicators() map[string]int64 {
+	return ds.currValues
+}
