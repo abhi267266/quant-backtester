@@ -22,4 +22,5 @@ go.work
 historical_data.csv
 engine/inspector
 node_modules/
+.env/
 
