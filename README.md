@@ -25,15 +25,30 @@ cd engine
 go build -o inspector main.go
 ```
 
-### Dual-Mode Backtesting Flag (`-mode`)
+### 1. External API Data Execution (`-mode live` & `-mode api`)
 
-The backtester now formally recognizes two specific ingestion modes for Strategy executions (`backtest` and `dynamic`):
-1. **`-mode csv` (Default):** Streams absolute historical datasets locally via `stdin`. The most efficient way to validate a theory iteratively.
-2. **`-mode live -symbol <TICKER>`:** Streams realtime tick data seamlessly using the **Alpha Vantage API**. The stream initially buffers a large sequential slice of historical data so algorithmic indicators can safely "warm up" (bypassing look-ahead bias), before immediately shifting into an infinite `1-min` live tick continuous polling loop! *Note: You must have your `ALPHA_API_KEY` mapped inside `$PWD/engine/.env` for this to work natively.*
+The framework connects directly to the Alpha Vantage API securely leveraging real-time data ingestion without loading raw `.csv` blocks. *(You must have your `ALPHA_API_KEY` mapped inside `$PWD/engine/.env` for this to work natively.)* 
+
+**Date-Bounded Historical API Backtesting (`-mode api`)**
+Query a bounded historical limit mathematically filtered by the engine without entering continuous polling execution:
+```bash
+./inspector dynamic -mode api -symbol AAPL -config strategy.json -start "2026-01-01" -end "2026-03-01" -log strategy_logs.csv
+```
+> **Note on Alpha Vantage Free Tier Limits:** By default, Free Tier constraints restrict querying further back than ~100 trading days. Utilizing 20-year boundaries (e.g., `-start "2020..."`) requires modifying exactly to `outputsize=full` inside `alpha_vantage.go` and utilizing an unlocked Premium API Key!
+
+**Live Polling Stream (`-mode live`)**
+Streams real-time tick data continuously natively buffering the exact same `-mode api` subset first to "warm up" algorithmic structures naturally bypassing look-ahead bias, before pushing into an infinite `1-hour` sleep cycle gracefully respecting standard 25-request-per-day rate constraints:
+```bash
+./inspector dynamic -mode live -symbol AAPL -config strategy.json
+```
+
+### 2. Local High-Fidelity CSV Mode (`-mode csv`)
+When you possess extensive pre-downloaded historical OHLCV archives locally on-disk, this strictly circumvents API limits parsing highly scalable standard input streaming seamlessly into infinite metrics:
+1. **`-mode csv` (Default)**: Extremely efficient $O(N)$ validations processing millions of ticks dynamically instantaneously offline format.
 
 ---
 
-### 1. Data Inspection (`inspect`)
+### 3. Data Inspection (`inspect`)
 Interact directly with the raw CSV streams *(Strictly `-mode csv` operations)*:
 - **Head/Tail Extraction:**
   ```bash

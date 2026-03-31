@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ...chartOptions,
         rightPriceScale: {
             ...chartOptions.rightPriceScale,
-            autoScale: false,
+            autoScale: true,
             scaleMargins: { top: 0.1, bottom: 0.1 },
         }
     });

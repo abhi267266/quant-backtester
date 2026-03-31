@@ -4,12 +4,12 @@
     {
       "id": "fast_ma",
       "type": "SMA",
-      "params": { "period": 10 }
+      "params": { "period": 5 }
     },
     {
       "id": "slow_ma",
       "type": "SMA",
-      "params": { "period": 50 }
+      "params": { "period": 10 }
     },
     {
       "id": "rsi_main",

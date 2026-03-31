@@ -17,6 +17,10 @@ type AlphaVantageDataHandler struct {
 	EndpointURL  string        // Used mainly to mock in tests; falls back to standard if empty
 	PollInterval time.Duration // Interval to sleep between live polls
 	MaxPollCount int           // Primarily for testing termination. -1 or 0 for infinite live polling.
+	
+	StartDate      time.Time   // Backtest inclusion boundary (inclusive)
+	EndDate        time.Time   // Backtest inclusion boundary (inclusive)
+	DisablePolling bool        // Stop after historically fetching
 }
 
 type avResponse struct {
@@ -39,13 +43,24 @@ func (h *AlphaVantageDataHandler) fetchAndParse(url string) ([]Bar, error) {
 		return nil, fmt.Errorf("alpha vantage returned %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
+	var errResp map[string]string
+	if err := json.Unmarshal(bodyBytes, &errResp); err == nil {
+		if info, exists := errResp["Information"]; exists {
+			// Natively catch the outputsize=full premium rejection limit
+			if len(info) > 0 && (info[0] == 'T' || info[0] == 't') { // "Thank you for using Alpha Vantage... premium feature"
+				return nil, fmt.Errorf("\n\n[API LIMIT ERROR]: You requested historical data exceeding the Free Tier 100-bar limit!\nAlpha Vantage strictly enforces premium licensing for deep historical boundaries.\nPlease upgrade your API key to fetch 'outputsize=full' deeper than ~3 months!")
+			}
+			return nil, fmt.Errorf("alpha vantage API rejected payload: %s", info)
+		}
+	}
+
 	var dataResp avResponse
 	if err := json.Unmarshal(bodyBytes, &dataResp); err != nil {
 		return nil, fmt.Errorf("failed to decode alpha vantage schema: %w\nRaw Payload: %s", err, string(bodyBytes))
 	}
 
 	if dataResp.TimeSeries == nil {
-		return nil, fmt.Errorf("alpha vantage payload missing 'Time Series (Daily)'. This usually indicates rate limits or an invalid ticker/API key. Raw Response: %s", string(bodyBytes))
+		return nil, fmt.Errorf("alpha vantage payload missing 'Time Series (Daily)'. Rate-limit or incorrect configuration.\nRaw Response: %s", string(bodyBytes))
 	}
 
 	var timestamps []string
@@ -83,6 +98,13 @@ func (h *AlphaVantageDataHandler) fetchAndParse(url string) ([]Bar, error) {
 			continue // skip empty
 		}
 
+		if !h.StartDate.IsZero() && parsedTS.Before(h.StartDate) {
+			continue
+		}
+		if !h.EndDate.IsZero() && parsedTS.After(h.EndDate) {
+			continue
+		}
+
 		bars = append(bars, Bar{
 			Timestamp: parsedTS,
 			Open:      open,
@@ -99,7 +121,8 @@ func (h *AlphaVantageDataHandler) fetchAndParse(url string) ([]Bar, error) {
 func (h *AlphaVantageDataHandler) Stream(visitor func(b Bar, rowIdx int) bool) error {
 	reqUrl := h.EndpointURL
 	if reqUrl == "" {
-		reqUrl = fmt.Sprintf("https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&outputsize=compact&apikey=%s", h.Symbol, h.APIKey)
+		outSize := "compact"
+		reqUrl = fmt.Sprintf("https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&outputsize=%s&apikey=%s", h.Symbol, outSize, h.APIKey)
 	}
 
 	var lastSeen time.Time
@@ -119,6 +142,11 @@ func (h *AlphaVantageDataHandler) Stream(visitor func(b Bar, rowIdx int) bool) e
 		}
 		lastSeen = b.Timestamp
 		rowIdx++
+	}
+
+	if h.DisablePolling {
+		log.Printf("Historical buffer flushed (%d bars). Bounded test complete.", rowIdx)
+		return nil
 	}
 
 	log.Printf("Historical buffer flushed (%d bars). Entering live polling mode...", rowIdx)

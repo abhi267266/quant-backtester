@@ -12,9 +12,11 @@ type SMACrossover struct {
 	
 	smaShort    indicators.StatefulIndicator
 	smaLong     indicators.StatefulIndicator
+	rsiMain     indicators.StatefulIndicator
 
 	currShort   int64
 	currLong    int64
+	currRsi     int64
 	prevShort   int64
 	prevLong    int64
 	isReady     bool
@@ -27,6 +29,7 @@ func NewSMACrossover(shortPeriod, longPeriod int) *SMACrossover {
 		longPeriod:  longPeriod,
 		smaShort:    &indicators.SMA{Period: shortPeriod},
 		smaLong:     &indicators.SMA{Period: longPeriod},
+		rsiMain:     &indicators.RSI{Period: 14}, // Default RSI mapped for oscillator bindings natively
 	}
 }
 
@@ -34,14 +37,16 @@ func NewSMACrossover(shortPeriod, longPeriod int) *SMACrossover {
 func (s *SMACrossover) CalculateSignal(market *event.MarketEvent, bus *event.EventQueue) {
 	currShort, err1 := s.smaShort.Update(market.Bar)
 	currLong, err2 := s.smaLong.Update(market.Bar)
+	currRsi, err3 := s.rsiMain.Update(market.Bar)
 
-	if err1 != nil || err2 != nil {
+	if err1 != nil || err2 != nil || err3 != nil {
 		return
 	}
 
 	if !s.isReady {
 		s.prevShort = currShort
 		s.prevLong = currLong
+		s.currRsi = currRsi
 		s.isReady = true
 		return
 	}
@@ -51,6 +56,9 @@ func (s *SMACrossover) CalculateSignal(market *event.MarketEvent, bus *event.Eve
 
 	s.prevShort = currShort
 	s.prevLong = currLong
+	s.currShort = currShort
+	s.currLong = currLong
+	s.currRsi = currRsi
 
 	if prevShort <= prevLong && currShort > currLong {
 		bus.Push(&event.SignalEvent{
@@ -76,5 +84,6 @@ func (s *SMACrossover) GetIndicators() map[string]int64 {
 	return map[string]int64{
 		"sma_short": s.currShort,
 		"sma_long":  s.currLong,
+		"rsi_main":  s.currRsi,
 	}
 }

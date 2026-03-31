@@ -179,22 +179,43 @@ func main() {
 		logFile := cmd.String("log", "", "File to output CSV logs")
 		interval := cmd.Int("interval", 100, "Interval for equity snapshots")
 		configFile := cmd.String("config", "", "Path to the JSON strategy configuration file")
-		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv' or 'live')")
-		symbol := cmd.String("symbol", "", "Symbol to trade if in live mode")
+		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv', 'live', or 'api')")
+		symbol := cmd.String("symbol", "", "Symbol to trade if in live/api mode")
+		startStr := cmd.String("start", "", "Start date for API backtest (YYYY-MM-DD)")
+		endStr := cmd.String("end", "", "End date for API backtest (YYYY-MM-DD)")
 
 		cmd.Parse(os.Args[2:])
 
-		if *mode == "live" {
+		var startDate, endDate time.Time
+		if *startStr != "" {
+			var parseErr error
+			startDate, parseErr = time.Parse("2006-01-02", *startStr)
+			if parseErr != nil {
+				log.Fatalf("invalid start date format. expected YYYY-MM-DD: %v", parseErr)
+			}
+		}
+		if *endStr != "" {
+			var parseErr error
+			endDate, parseErr = time.Parse("2006-01-02", *endStr)
+			if parseErr != nil {
+				log.Fatalf("invalid end date format. expected YYYY-MM-DD: %v", parseErr)
+			}
+		}
+
+		if *mode == "live" || *mode == "api" {
 			if *symbol == "" {
-				log.Fatalf("symbol is required when using live mode. Use -symbol <ticker>")
+				log.Fatalf("symbol is required when using %s mode. Use -symbol <ticker>", *mode)
 			}
 			apiKey := os.Getenv("ALPHA_API_KEY")
 			if apiKey == "" {
 				log.Fatalf("ALPHA_API_KEY environment variable not set")
 			}
 			handler = &data.AlphaVantageDataHandler{
-				Symbol: *symbol,
-				APIKey: apiKey,
+				Symbol:         *symbol,
+				APIKey:         apiKey,
+				StartDate:      startDate,
+				EndDate:        endDate,
+				DisablePolling: (*mode == "api"),
 			}
 		}
 
@@ -238,22 +259,43 @@ func main() {
 		capital := cmd.Float64("capital", 10000.0, "Initial capital (in standard currency)")
 		logFile := cmd.String("log", "", "File to output CSV logs (leave empty for testing/no-op)")
 		interval := cmd.Int("interval", 100, "Interval for equity snapshots")
-		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv' or 'live')")
-		symbol := cmd.String("symbol", "", "Symbol to trade if in live mode")
+		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv', 'live', or 'api')")
+		symbol := cmd.String("symbol", "", "Symbol to trade if in live/api mode")
+		startStr := cmd.String("start", "", "Start date for API backtest (YYYY-MM-DD)")
+		endStr := cmd.String("end", "", "End date for API backtest (YYYY-MM-DD)")
 
 		cmd.Parse(os.Args[2:])
 
-		if *mode == "live" {
+		var startDate, endDate time.Time
+		if *startStr != "" {
+			var parseErr error
+			startDate, parseErr = time.Parse("2006-01-02", *startStr)
+			if parseErr != nil {
+				log.Fatalf("invalid start date format. expected YYYY-MM-DD: %v", parseErr)
+			}
+		}
+		if *endStr != "" {
+			var parseErr error
+			endDate, parseErr = time.Parse("2006-01-02", *endStr)
+			if parseErr != nil {
+				log.Fatalf("invalid end date format. expected YYYY-MM-DD: %v", parseErr)
+			}
+		}
+
+		if *mode == "live" || *mode == "api" {
 			if *symbol == "" {
-				log.Fatalf("symbol is required when using live mode. Use -symbol <ticker>")
+				log.Fatalf("symbol is required when using %s mode. Use -symbol <ticker>", *mode)
 			}
 			apiKey := os.Getenv("ALPHA_API_KEY")
 			if apiKey == "" {
 				log.Fatalf("ALPHA_API_KEY environment variable not set")
 			}
 			handler = &data.AlphaVantageDataHandler{
-				Symbol: *symbol,
-				APIKey: apiKey,
+				Symbol:         *symbol,
+				APIKey:         apiKey,
+				StartDate:      startDate,
+				EndDate:        endDate,
+				DisablePolling: (*mode == "api"),
 			}
 		}
 
