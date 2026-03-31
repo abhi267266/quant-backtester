@@ -8,63 +8,106 @@ import (
 	"github.com/quant-backtester/engine/internal/event"
 )
 
-func TestSMACrossover(t *testing.T) {
-	strategy := NewSMACrossover(2, 4)
+// makeBar creates a uniform bar where OHLCV are all the identical price.
+func makeBar(price int64, t time.Time) data.Bar {
+	return data.Bar{
+		Timestamp: t,
+		Open:      price,
+		High:      price,
+		Low:       price,
+		Close:     price,
+		Volume:    100 * data.Decimals,
+	}
+}
 
-	// Mock price trend
-	// data.Bar Scale is 100,000,000
-	const scale = 100000000
+func TestDynamicStrategyValidation(t *testing.T) {
+	var configJSON = []byte(`{
+		"strategy_name": "MovingAverageOscillator",
+		"indicators": [
+			{ "id": "fast_ma", "type": "SMA", "params": { "period": 2 } },
+			{ "id": "slow_ma", "type": "SMA", "params": { "period": 4 } },
+			{ "id": "rsi_main", "type": "RSI", "params": { "period": 5 } }
+		],
+		"rules": {
+			"buy": [
+				{ "type": "crossover", "left_operand": "fast_ma", "right_operand": "slow_ma" }
+			],
+			"sell": [
+				{ "type": "crossunder", "left_operand": "fast_ma", "right_operand": "slow_ma" }
+			]
+		}
+	}`)
 
-	tests := []struct {
-		name     string
-		price    int64
-		expected string
-	}{
-		// Bar 1: Price 10, SMA2: -, SMA4: - -> Hold
-		{"Day 1", 10 * scale, "HOLD"},
-		// Bar 2: Price 10, SMA2: 10, SMA4: - -> Hold
-		{"Day 2", 10 * scale, "HOLD"},
-		// Bar 3: Price 10, SMA2: 10, SMA4: - -> Hold
-		{"Day 3", 10 * scale, "HOLD"},
-		// Bar 4: Price 10, SMA2: 10, SMA4: 10 -> Hold (No strict crossover)
-		{"Day 4", 10 * scale, "HOLD"},
-		
-		// Bar 5: Price 12, SMA2: 11, SMA4: 10.5 -> Short(11) crosses above Long(10.5) from below(10<=10) -> BUY
-		{"Day 5 (Cross Up)", 12 * scale, "BUY"},
-		
-		// Bar 6: Price 14, SMA2: 13, SMA4: 11.5 -> Short > Long but didn't cross *on this bar* -> HOLD
-		{"Day 6 (Hold Up)", 14 * scale, "HOLD"},
-		
-		// Bar 7: Price 8, SMA2: 11, SMA4: 11 -> Short == Long -> HOLD (or depending on strict inequality. Let's assume strict cross means Short < Long later)
-		{"Day 7 (Equal)", 8 * scale, "HOLD"},
-
-		// Bar 8: Price 6, SMA2: 7, SMA4: 10 -> Short(7) < Long(10) after being >= Long. Crosses below -> SELL
-		{"Day 8 (Cross Down)", 6 * scale, "SELL"},
-
-		// Bar 9: Price 6, SMA2: 6, SMA4: 8.5 -> Short < Long but already crossed -> HOLD
-		{"Day 9 (Hold Down)", 6 * scale, "HOLD"},
+	strat, err := NewDynamicStrategyFromJSON(configJSON)
+	if err != nil {
+		t.Fatalf("failed to initialize strategy natively: %v", err)
 	}
 
-	ts := time.Now()
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			bar := data.Bar{
-				Timestamp: ts,
-				Close:     tc.price,
-			}
-			ts = ts.Add(24 * time.Hour)
+	var _ Strategy = strat
 
-			bus := event.NewEventQueue()
-			strategy.CalculateSignal(&event.MarketEvent{Bar: bar}, bus)
+	if strat.Name != "MovingAverageOscillator" {
+		t.Errorf("expected name MovingAverageOscillator, got %s", strat.Name)
+	}
+	if len(strat.components) != 3 {
+		t.Errorf("expected 3 indicator components, got %d", len(strat.components))
+	}
+	if len(strat.buyRules)+len(strat.sellRules) != 2 {
+		t.Errorf("expected 2 fully loaded rules mapped, got %d", len(strat.buyRules)+len(strat.sellRules))
+	}
+}
 
-			action := "HOLD"
-			if !bus.IsEmpty() {
-				action = bus.Pop().(*event.SignalEvent).Direction
-			}
+func TestCalculateSignal_EvaluationLogic(t *testing.T) {
+	var configJSON = []byte(`{
+		"strategy_name": "BasicCross",
+		"indicators": [
+			{ "id": "fast", "type": "SMA", "params": { "period": 2 } },
+			{ "id": "slow", "type": "SMA", "params": { "period": 3 } }
+		],
+		"rules": {
+			"buy": [
+				{ "type": "crossover", "left_operand": "fast", "right_operand": "slow" }
+			],
+			"sell": []
+		}
+	}`)
 
-			if action != tc.expected {
-				t.Errorf("expected %v, got %v for price %d", tc.expected, action, tc.price/scale)
-			}
-		})
+	strat, err := NewDynamicStrategyFromJSON(configJSON)
+	if err != nil {
+		t.Fatalf("failed parsing: %v", err)
+	}
+
+	bus := event.NewEventQueue()
+	baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	scale := data.Decimals
+
+	// Bar 1 & 2: Prices 10. Indicators cannot evaluate.
+	strat.CalculateSignal(&event.MarketEvent{Bar: makeBar(10*scale, baseTime)}, bus)
+	if !bus.IsEmpty() { t.Fatal("Signal triggered during warmup") }
+	strat.CalculateSignal(&event.MarketEvent{Bar: makeBar(10*scale, baseTime.Add(24*time.Hour))}, bus)
+	if !bus.IsEmpty() { t.Fatal("Signal triggered during warmup") }
+
+	// Bar 3: Price 10. (Slow SMA finally has 3 data points).
+	// Strategy transitions state to isReady=true. NO signals possible yet because no Delta (prev == nil)
+	strat.CalculateSignal(&event.MarketEvent{Bar: makeBar(10*scale, baseTime.Add(48*time.Hour))}, bus)
+	if !bus.IsEmpty() { t.Fatal("expected no signal on exact warmup tick") }
+    if !strat.isReady { t.Fatal("expected isReady state flag identically switched") }
+
+	// Bar 4: Price 10. Fast=10, Slow=10. (Prev was 10,10). No event.
+	strat.CalculateSignal(&event.MarketEvent{Bar: makeBar(10*scale, baseTime.Add(72*time.Hour))}, bus)
+	if !bus.IsEmpty() { t.Fatal("expected no signal, holds flat natively") }
+
+	// Bar 5: Price 12. 
+	// Fast SMA (Period 2) = (10+12)/2 = 11.
+	// Slow SMA (Period 3) = (10+10+12)/3 = 10.66.
+	// Primary (11) > Secondary (10.66). Prev (10 <= 10). Crossover valid!
+	strat.CalculateSignal(&event.MarketEvent{Bar: makeBar(12*scale, baseTime.Add(96*time.Hour))}, bus)
+	
+	if bus.IsEmpty() {
+		t.Fatal("expected crossover signal triggered identically bounded")
+	}
+
+	sig := bus.Pop().(*event.SignalEvent)
+	if sig.Direction != "BUY" {
+		t.Fatalf("expected BUY, got %s", sig.Direction)
 	}
 }

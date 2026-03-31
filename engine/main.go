@@ -64,7 +64,7 @@ func printIndicatorTable(bars []data.Bar, values []int64, name string, tailN int
 func main() {
 	_ = godotenv.Load() // optional, so we ignore error if file not found
 	if len(os.Args) < 2 {
-		fmt.Println("expected a subcommand: 'inspect', 'sma', 'ema', 'rsi', 'backtest', 'dynamic'")
+		fmt.Println("expected a subcommand: 'inspect', 'sma', 'ema', 'rsi', 'backtest'")
 		os.Exit(1)
 	}
 
@@ -173,7 +173,7 @@ func main() {
 
 		printIndicatorTable(bars, results, name, *n)
 
-	case "dynamic":
+	case "backtest":
 		cmd := flag.NewFlagSet(subcommand, flag.ExitOnError)
 		capital := cmd.Float64("capital", 10000.0, "Initial capital (in standard currency)")
 		logFile := cmd.String("log", "", "File to output CSV logs")
@@ -248,73 +248,6 @@ func main() {
 		fmt.Printf("Starting backtest with Dynamic JSON Strategy (%s, Initial Capital: %.2f)...\n", strat.Name, *capital)
 
 		err = engine.Run(handler, strat, initialCash, l, *interval)
-		if err != nil {
-			log.Fatalf("backtest failure: %v", err)
-		}
-
-	case "backtest":
-		cmd := flag.NewFlagSet(subcommand, flag.ExitOnError)
-		short := cmd.Int("short", 5, "Short SMA period")
-		long := cmd.Int("long", 10, "Long SMA period")
-		capital := cmd.Float64("capital", 10000.0, "Initial capital (in standard currency)")
-		logFile := cmd.String("log", "", "File to output CSV logs (leave empty for testing/no-op)")
-		interval := cmd.Int("interval", 100, "Interval for equity snapshots")
-		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv', 'live', or 'api')")
-		symbol := cmd.String("symbol", "", "Symbol to trade if in live/api mode")
-		startStr := cmd.String("start", "", "Start date for API backtest (YYYY-MM-DD)")
-		endStr := cmd.String("end", "", "End date for API backtest (YYYY-MM-DD)")
-
-		cmd.Parse(os.Args[2:])
-
-		var startDate, endDate time.Time
-		if *startStr != "" {
-			var parseErr error
-			startDate, parseErr = time.Parse("2006-01-02", *startStr)
-			if parseErr != nil {
-				log.Fatalf("invalid start date format. expected YYYY-MM-DD: %v", parseErr)
-			}
-		}
-		if *endStr != "" {
-			var parseErr error
-			endDate, parseErr = time.Parse("2006-01-02", *endStr)
-			if parseErr != nil {
-				log.Fatalf("invalid end date format. expected YYYY-MM-DD: %v", parseErr)
-			}
-		}
-
-		if *mode == "live" || *mode == "api" {
-			if *symbol == "" {
-				log.Fatalf("symbol is required when using %s mode. Use -symbol <ticker>", *mode)
-			}
-			apiKey := os.Getenv("ALPHA_API_KEY")
-			if apiKey == "" {
-				log.Fatalf("ALPHA_API_KEY environment variable not set")
-			}
-			handler = &data.AlphaVantageDataHandler{
-				Symbol:         *symbol,
-				APIKey:         apiKey,
-				StartDate:      startDate,
-				EndDate:        endDate,
-				DisablePolling: (*mode == "api"),
-			}
-		}
-
-		strat := strategy.NewSMACrossover(*short, *long)
-		initialCash := int64(*capital * float64(data.Decimals))
-
-		var l logger.LogWriter = &logger.NoOpLogger{}
-		if *logFile != "" {
-			file, err := os.Create(*logFile)
-			if err != nil {
-				log.Fatalf("failed to create log file: %v", err)
-			}
-			defer file.Close()
-			l = logger.NewCSVLogger(file)
-		}
-
-		fmt.Printf("Starting backtest with SMACrossover (Short: %d, Long: %d, Initial Capital: %.2f)...\n", *short, *long, *capital)
-
-		err := engine.Run(handler, strat, initialCash, l, *interval)
 		if err != nil {
 			log.Fatalf("backtest failure: %v", err)
 		}

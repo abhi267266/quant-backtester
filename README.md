@@ -32,14 +32,14 @@ The framework connects directly to the Alpha Vantage API securely leveraging rea
 **Date-Bounded Historical API Backtesting (`-mode api`)**
 Query a bounded historical limit mathematically filtered by the engine without entering continuous polling execution:
 ```bash
-./inspector dynamic -mode api -symbol AAPL -config strategy.json -start "2026-01-01" -end "2026-03-01" -log strategy_logs.csv
+./inspector backtest -mode api -symbol AAPL -config strategy.json -start "2026-01-01" -end "2026-03-01" -log strategy_logs.csv
 ```
 > **Note on Alpha Vantage Free Tier Limits:** By default, Free Tier constraints restrict querying further back than ~100 trading days. Utilizing 20-year boundaries (e.g., `-start "2020..."`) requires modifying exactly to `outputsize=full` inside `alpha_vantage.go` and utilizing an unlocked Premium API Key!
 
 **Live Polling Stream (`-mode live`)**
 Streams real-time tick data continuously natively buffering the exact same `-mode api` subset first to "warm up" algorithmic structures naturally bypassing look-ahead bias, before pushing into an infinite `1-hour` sleep cycle gracefully respecting standard 25-request-per-day rate constraints:
 ```bash
-./inspector dynamic -mode live -symbol AAPL -config strategy.json
+./inspector backtest -mode live -symbol AAPL -config strategy.json
 ```
 
 ### 2. Local High-Fidelity CSV Mode (`-mode csv`)
@@ -61,19 +61,7 @@ Interact directly with the raw CSV streams *(Strictly `-mode csv` operations)*:
   ```
 
 ### 2. Full Strategy Backtesting (`backtest`)
-Run a robust `SMACrossover` strategy synchronously through the zero-allocation `portfolio` handler. This outputs a beautiful real-time execution table tracking `Timestamp`, `Action`, `Price`, `Capital`, `Cash`, `CostBasis`, and `PositionSize` for every executed signal.
-
-**Offline (CSV) Execution Example:**
-```bash
-./inspector backtest -mode csv -short 5 -long 20 -capital 25000 -log strategy_logs.csv < historical_data.csv
-```
-**Live API Execution Example:**
-```bash
-./inspector backtest -mode live -symbol IBM -short 5 -long 20 -capital 25000 -log strategy_logs.csv
-```
-
-### 3. JSON Dynamic Strategies (`dynamic`)
-Design fully custom, mathematically sound trading algorithms without writing any Go logic. Define multiple $O(1)$ indicators dynamically and build complex rule sets out of simple JSON structures.
+Design fully custom, mathematically sound trading algorithms without writing any Go logic. Define multiple $O(1)$ indicators dynamically and build complex rule sets out of simple JSON structures securely validating via zero-allocation memory pooling:
 
 **Create a Strategy configuration (`strategy.json`):**
 ```json
@@ -96,9 +84,9 @@ Design fully custom, mathematically sound trading algorithms without writing any
 }
 ```
 
-**Run the JSON engine natively:**
+  To run the backend generator, fire the dynamic engine routing cleanly backwards sequentially:
 ```bash
-./inspector dynamic -mode live -symbol AAPL -config strategy.json -capital 15000 -log strategy_logs.csv
+./inspector backtest -mode live -symbol AAPL -config strategy.json -capital 15000 -log strategy_logs.csv
 ```
 
 ---
