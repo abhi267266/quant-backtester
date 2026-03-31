@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/olekukonko/tablewriter"
 	"github.com/quant-backtester/engine/data"
 	"github.com/quant-backtester/engine/internal/engine"
@@ -61,13 +62,14 @@ func printIndicatorTable(bars []data.Bar, values []int64, name string, tailN int
 }
 
 func main() {
+	_ = godotenv.Load() // optional, so we ignore error if file not found
 	if len(os.Args) < 2 {
-		fmt.Println("expected a subcommand: 'inspect', 'sma', 'ema', 'rsi', 'backtest'")
+		fmt.Println("expected a subcommand: 'inspect', 'sma', 'ema', 'rsi', 'backtest', 'dynamic'")
 		os.Exit(1)
 	}
 
 	subcommand := os.Args[1]
-	handler := &data.CSVDataHandler{Reader: os.Stdin}
+	var handler data.DataHandler = &data.CSVDataHandler{Reader: os.Stdin}
 
 	switch subcommand {
 	case "inspect":
@@ -177,8 +179,24 @@ func main() {
 		logFile := cmd.String("log", "", "File to output CSV logs")
 		interval := cmd.Int("interval", 100, "Interval for equity snapshots")
 		configFile := cmd.String("config", "", "Path to the JSON strategy configuration file")
+		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv' or 'live')")
+		symbol := cmd.String("symbol", "", "Symbol to trade if in live mode")
 
 		cmd.Parse(os.Args[2:])
+
+		if *mode == "live" {
+			if *symbol == "" {
+				log.Fatalf("symbol is required when using live mode. Use -symbol <ticker>")
+			}
+			apiKey := os.Getenv("ALPHA_API_KEY")
+			if apiKey == "" {
+				log.Fatalf("ALPHA_API_KEY environment variable not set")
+			}
+			handler = &data.AlphaVantageDataHandler{
+				Symbol: *symbol,
+				APIKey: apiKey,
+			}
+		}
 
 		if *configFile == "" {
 			log.Fatalf("config file path is required. Use -config <path>")
@@ -220,8 +238,24 @@ func main() {
 		capital := cmd.Float64("capital", 10000.0, "Initial capital (in standard currency)")
 		logFile := cmd.String("log", "", "File to output CSV logs (leave empty for testing/no-op)")
 		interval := cmd.Int("interval", 100, "Interval for equity snapshots")
+		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv' or 'live')")
+		symbol := cmd.String("symbol", "", "Symbol to trade if in live mode")
 
 		cmd.Parse(os.Args[2:])
+
+		if *mode == "live" {
+			if *symbol == "" {
+				log.Fatalf("symbol is required when using live mode. Use -symbol <ticker>")
+			}
+			apiKey := os.Getenv("ALPHA_API_KEY")
+			if apiKey == "" {
+				log.Fatalf("ALPHA_API_KEY environment variable not set")
+			}
+			handler = &data.AlphaVantageDataHandler{
+				Symbol: *symbol,
+				APIKey: apiKey,
+			}
+		}
 
 		strat := strategy.NewSMACrossover(*short, *long)
 		initialCash := int64(*capital * float64(data.Decimals))
