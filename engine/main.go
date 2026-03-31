@@ -179,8 +179,8 @@ func main() {
 		logFile := cmd.String("log", "", "File to output CSV logs")
 		interval := cmd.Int("interval", 100, "Interval for equity snapshots")
 		configFile := cmd.String("config", "", "Path to the JSON strategy configuration file")
-		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv', 'live', or 'api')")
-		symbol := cmd.String("symbol", "", "Symbol to trade if in live/api mode")
+		mode := cmd.String("mode", "csv", "Data ingestion mode ('csv', 'live', 'api', or 'yfinance')")
+		symbol := cmd.String("symbol", "", "Symbol to trade if in live/api/yfinance mode")
 		startStr := cmd.String("start", "", "Start date for API backtest (YYYY-MM-DD)")
 		endStr := cmd.String("end", "", "End date for API backtest (YYYY-MM-DD)")
 
@@ -202,7 +202,19 @@ func main() {
 			}
 		}
 
-		if *mode == "live" || *mode == "api" {
+		if *mode == "yfinance" {
+			if *symbol == "" {
+				log.Fatalf("symbol is required when using yfinance mode. Use -symbol <ticker>")
+			}
+			if startDate.IsZero() || endDate.IsZero() {
+				log.Fatalf("start and end dates are specifically required for yfinance to construct bounds cleanly. Use -start and -end")
+			}
+			handler = &data.YFinanceDataHandler{
+				Symbol:    *symbol,
+				StartDate: startDate,
+				EndDate:   endDate,
+			}
+		} else if *mode == "live" || *mode == "api" {
 			if *symbol == "" {
 				log.Fatalf("symbol is required when using %s mode. Use -symbol <ticker>", *mode)
 			}
