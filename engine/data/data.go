@@ -48,8 +48,8 @@ const (
 	Decimals int64 = 100000000
 )
 
-// parseDecimal safely converts string to scaled int64 (s * Decimals)
-func parseDecimal(s string) (int64, error) {
+// ParseDecimal safely converts string to scaled int64 (s * Decimals)
+func ParseDecimal(s string) (int64, error) {
 	if s == "" {
 		return 0, fmt.Errorf("empty decimal string")
 	}
@@ -105,8 +105,8 @@ func parseDecimal(s string) (int64, error) {
 	return result, nil
 }
 
-// parseTimestamp handles both RFC3339 and YYYY-MM-DD formats
-func parseTimestamp(ts string) (time.Time, error) {
+// ParseTimestamp handles both RFC3339 and YYYY-MM-DD formats
+func ParseTimestamp(ts string) (time.Time, error) {
 	// Try RFC3339 first
 	parsed, err := time.Parse(time.RFC3339, ts)
 	if err == nil {
@@ -140,32 +140,32 @@ func (h *CSVDataHandler) Stream(visitor func(b Bar, rowIdx int) bool) error {
 			return fmt.Errorf("row %d: incomplete data, expected 6 columns got %d", i+1, len(record))
 		}
 
-		timestamp, err := parseTimestamp(record[0])
+		timestamp, err := ParseTimestamp(record[0])
 		if err != nil {
 			return fmt.Errorf("row %d: invalid timestamp: %w", i+1, err)
 		}
 
-		open, err := parseDecimal(record[1])
+		open, err := ParseDecimal(record[1])
 		if err != nil {
 			return fmt.Errorf("row %d: invalid open: %w", i+1, err)
 		}
 
-		high, err := parseDecimal(record[2])
+		high, err := ParseDecimal(record[2])
 		if err != nil {
 			return fmt.Errorf("row %d: invalid high: %w", i+1, err)
 		}
 
-		low, err := parseDecimal(record[3])
+		low, err := ParseDecimal(record[3])
 		if err != nil {
 			return fmt.Errorf("row %d: invalid low: %w", i+1, err)
 		}
 
-		closeVal, err := parseDecimal(record[4])
+		closeVal, err := ParseDecimal(record[4])
 		if err != nil {
 			return fmt.Errorf("row %d: invalid close: %w", i+1, err)
 		}
 
-		volume, err := parseDecimal(record[5])
+		volume, err := ParseDecimal(record[5])
 		if err != nil {
 			return fmt.Errorf("row %d: invalid volume: %w", i+1, err)
 		}
