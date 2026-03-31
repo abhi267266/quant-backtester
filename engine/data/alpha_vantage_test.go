@@ -26,22 +26,21 @@ func TestAlphaVantageDataHandler_Stream(t *testing.T) {
 	// First request simulates historical backup
 	payload1 := `{
     "Meta Data": {
-        "1. Information": "Intraday (1min) open, high, low, close prices and volume",
+        "1. Information": "Daily Prices (open, high, low, close) and Volumes",
         "2. Symbol": "IBM",
-        "3. Last Refreshed": "2023-11-24 19:59:00",
-        "4. Interval": "1min",
-        "5. Output Size": "Compact",
-        "6. Time Zone": "US/Eastern"
+        "3. Last Refreshed": "2023-11-24",
+        "4. Output Size": "Compact",
+        "5. Time Zone": "US/Eastern"
     },
-    "Time Series (1min)": {
-        "2023-11-24 19:59:00": {
+    "Time Series (Daily)": {
+        "2023-11-24": {
             "1. open": "155.0000",
             "2. high": "155.5000",
             "3. low": "154.5000",
             "4. close": "154.8000",
             "5. volume": "100"
         },
-        "2023-11-24 19:58:00": {
+        "2023-11-23": {
             "1. open": "154.9000",
             "2. high": "154.9500",
             "3. low": "154.8500",
@@ -54,17 +53,17 @@ func TestAlphaVantageDataHandler_Stream(t *testing.T) {
 	// Second payload simulates the first continuous poll picking up a new minute tick
 	payload2 := `{
     "Meta Data": {
-        "1. Information": "Intraday (1min) open, high, low, close prices and volume"
+        "1. Information": "Daily Prices (open, high, low, close) and Volumes"
     },
-    "Time Series (1min)": {
-        "2023-11-24 20:00:00": {
+    "Time Series (Daily)": {
+        "2023-11-25": {
             "1. open": "154.8000",
             "2. high": "154.9000",
             "3. low": "154.7000",
             "4. close": "154.8500",
             "5. volume": "500"
         },
-        "2023-11-24 19:59:00": {
+        "2023-11-24": {
             "1. open": "155.0000",
             "2. high": "155.5000",
             "3. low": "154.5000",

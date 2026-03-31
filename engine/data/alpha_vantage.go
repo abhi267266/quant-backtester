@@ -20,7 +20,7 @@ type AlphaVantageDataHandler struct {
 }
 
 type avResponse struct {
-	TimeSeries map[string]map[string]string `json:"Time Series (1min)"`
+	TimeSeries map[string]map[string]string `json:"Time Series (Daily)"`
 }
 
 func (h *AlphaVantageDataHandler) fetchAndParse(url string) ([]Bar, error) {
@@ -30,25 +30,28 @@ func (h *AlphaVantageDataHandler) fetchAndParse(url string) ([]Bar, error) {
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("alpha vantage returned %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var dataResp avResponse
-	if err := json.NewDecoder(resp.Body).Decode(&dataResp); err != nil {
-		return nil, fmt.Errorf("failed to decode alpha vantage schema: %w", err)
+	if err := json.Unmarshal(bodyBytes, &dataResp); err != nil {
+		return nil, fmt.Errorf("failed to decode alpha vantage schema: %w\nRaw Payload: %s", err, string(bodyBytes))
 	}
 
 	if dataResp.TimeSeries == nil {
-		return nil, fmt.Errorf("alpha vantage payload missing 'Time Series (1min)'. Might be rate limited")
+		return nil, fmt.Errorf("alpha vantage payload missing 'Time Series (Daily)'. This usually indicates rate limits or an invalid ticker/API key. Raw Response: %s", string(bodyBytes))
 	}
 
 	var timestamps []string
 	for ts := range dataResp.TimeSeries {
 		timestamps = append(timestamps, ts)
 	}
-
 	// AV returns newest first. We need oldest first for backtest
 	sort.Strings(timestamps)
 
@@ -96,7 +99,7 @@ func (h *AlphaVantageDataHandler) fetchAndParse(url string) ([]Bar, error) {
 func (h *AlphaVantageDataHandler) Stream(visitor func(b Bar, rowIdx int) bool) error {
 	reqUrl := h.EndpointURL
 	if reqUrl == "" {
-		reqUrl = fmt.Sprintf("https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=%s&interval=1min&outputsize=compact&apikey=%s", h.Symbol, h.APIKey)
+		reqUrl = fmt.Sprintf("https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&outputsize=compact&apikey=%s", h.Symbol, h.APIKey)
 	}
 
 	var lastSeen time.Time
@@ -123,7 +126,7 @@ func (h *AlphaVantageDataHandler) Stream(visitor func(b Bar, rowIdx int) bool) e
 	// Phase 2: Live Polling loop
 	pollInterval := h.PollInterval
 	if pollInterval == 0 {
-		pollInterval = 60 * time.Second // Default 1 min poll spacing to respect rate limits
+		pollInterval = time.Hour // Default 1 hour poll spacing to respect rate limits for Daily data
 	}
 
 	polls := 0
