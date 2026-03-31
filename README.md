@@ -11,74 +11,54 @@ We don't do `float64` for critical math. We use scaled `int64` fixed-point repre
 The pipeline is completely engineered on an **Event-Driven Architecture (EDA)** to eliminate Garbage Collector (GC) pressure by operating in an asynchronous, decoupled, $O(1)$ streaming fashion:
 
 - **`event` Package (The Core EDA):** The central nervous system of the backtester. An ultra-fast, channel-based `EventBus` that handles data decoupling. It standardizes asynchronous communication matching live trading mechanics using core event variants: `MarketEvent`, `SignalEvent`, `OrderEvent`, and `FillEvent`.
-- **`data` Package:** A lightning-fast, zero-allocation-per-bar CSV stream reader. It evaluates massive datasets iteratively without storing the entire file into RAM, publishing `MarketEvent`s directly to the bus.
+- **`data` Package:** Engineered for Dual-Mode Ingestion. Natively supports ultra-fast iterative CSV streaming (offline mode) and real-time **Alpha Vantage API** continuous polling pipelines (live mode) seamlessly without disrupting the $O(1)$ mathematical execution bounds.
 - **`indicators` Package:** Features technical indicators (SMA, EMA, RSI) built natively on $10^8$ integer math. It leverages a Stateful `Update()` pipeline that evaluates indicators incrementally slice-free per tick—producing 1,400x speedups natively over batch processing.
-- **`portfolio` Package:** A completely zero-allocation, $O(1)$ portfolio accounting layer tracking fixed-point Cash, Cost Basis, Peak Equity, Realized PnL, Max Drawdown, and precise Position Sizes continuously across trades. It is equipped with strict positional guards against "ghost signals". It listens to `SignalEvent`s and `FillEvent`s.
-- **`logger` Package:** Streams $10^8$ fixed-point values completely separated from the heap memory using a manual fixed-point digit extraction format into CSV files, circumventing Go's alloc-heavy `fmt.Sprintf` completely. Contains a Benchmark-safety `NoOpLogger` validating 0 allocs/op bounds.
-- **`strategy` Package:** Sandbox environment housing your algorithms (e.g., `SMACrossover`). Strategies listen to the event bus for `MarketEvent`s, process price action completely devoid of look-ahead bias, and publish `SignalEvent`s back.
+- **`portfolio` Package:** A completely zero-allocation, $O(1)$ portfolio accounting layer tracking fixed-point Cash, Cost Basis, Peak Equity, Realized PnL, Max Drawdown, and precise Position Sizes continuously across trades. It is equipped with strict positional guards against "ghost signals".
+- **`strategy` Package:** Sandbox environment housing your algorithms (e.g., `SMACrossover`, `Dynamic JSON`). Strategies process price action completely devoid of look-ahead bias, publishing `SignalEvent`s natively.
 
-## 🕵️‍♂️ Using the CLI Inspector
+## 🕵️‍♂️ Usage & Modes
 
-Because staring at raw gigabyte CSV dumps is difficult, we built a terminal CLI executable (`inspector`). It streams data intuitively, generates formatted ASCII tables natively, logs live trade data predictably, and reconstructs strict internal integers cleanly into human-readable prices for debugging.
-
-### Building the Executable
-
-Navigate to the `engine` directory and compile the binary natively:
+The `inspector` executable elegantly abstracts the execution pipeline via CLI flags. Build the engine first:
 
 ```bash
 cd engine
 go build -o inspector main.go
 ```
 
-The data handler expects a standard CSV format feeding via `stdin`: `Timestamp, Open, High, Low, Close, Volume`.
+### Dual-Mode Backtesting Flag (`-mode`)
 
-### Available Commands
+The backtester now formally recognizes two specific ingestion modes for Strategy executions (`backtest` and `dynamic`):
+1. **`-mode csv` (Default):** Streams absolute historical datasets locally via `stdin`. The most efficient way to validate a theory iteratively.
+2. **`-mode live -symbol <TICKER>`:** Streams realtime tick data seamlessly using the **Alpha Vantage API**. The stream initially buffers a large sequential slice of historical data so algorithmic indicators can safely "warm up" (bypassing look-ahead bias), before immediately shifting into an infinite `1-min` live tick continuous polling loop! *Note: You must have your `ALPHA_API_KEY` mapped inside `$PWD/engine/.env` for this to work natively.*
 
-#### 1. Data Inspection (`inspect`)
-Interact directly with the raw CSV streams:
+---
+
+### 1. Data Inspection (`inspect`)
+Interact directly with the raw CSV streams *(Strictly `-mode csv` operations)*:
 - **Head/Tail Extraction:**
   ```bash
-  ./inspector inspect head -n 10 < historical_data.csv
-  ./inspector inspect tail -n 10 < historical_data.csv
+  ./inspector inspect head -n 10 < data.csv
+  ./inspector inspect tail -n 10 < data.csv
   ```
-- **Range Extraction (Surgical evaluation):**
+- **Range & Stats Continuity Checks:** Automatically scans for missing intervals and internal timestamp gaps without blowing up RAM.
   ```bash
-  ./inspector inspect range -start 50 -end 65 < historical_data.csv
-  ```
-- **Stats & Continuity Checks:** Automatically scans for missing intervals and internal timestamp gaps without blowing up RAM.
-  ```bash
-  ./inspector inspect stats < historical_data.csv
+  ./inspector inspect stats < data.csv
   ```
 
-#### 2. Technical Indicators (`sma`, `ema`, `rsi`)
-Compute math-heavy technicals directly across the tail bounds of the dataset:
+### 2. Full Strategy Backtesting (`backtest`)
+Run a robust `SMACrossover` strategy synchronously through the zero-allocation `portfolio` handler. This outputs a beautiful real-time execution table tracking `Timestamp`, `Action`, `Price`, `Capital`, `Cash`, `CostBasis`, and `PositionSize` for every executed signal.
+
+**Offline (CSV) Execution Example:**
 ```bash
-./inspector sma -period 14 -n 10 < historical_data.csv
-./inspector ema -period 14 -n 10 < historical_data.csv
-./inspector rsi -period 14 -n 10 < historical_data.csv
+./inspector backtest -mode csv -short 5 -long 20 -capital 25000 -log strategy_logs.csv < historical_data.csv
+```
+**Live API Execution Example:**
+```bash
+./inspector backtest -mode live -symbol IBM -short 5 -long 20 -capital 25000 -log strategy_logs.csv
 ```
 
-#### 3. Full Strategy Backtesting (`backtest`)
-Run a robust `SMACrossover` strategy synchronously through the zero-allocation `portfolio` handler. This outputs a beautiful real-time execution table tracking `Timestamp`, `Action`, `Price`, `Capital`, `Cash`, `CostBasis`, and `PositionSize` for every executed signal, flawlessly followed by a definitive Performance Summary metric table.
-
-**Configurable Flags:**
-- `-short`: Fast SMA period (default: `5`)
-- `-long`: Slow SMA period (default: `10`)
-- `-capital`: Initial starting simulated capital (default: `10000.0`)
-- `-log`: Write detailed raw snapshot and trade outputs into a specific CSV filename
-- `-interval`: How frequently (in bars) to log absolute snapshot frames
-
-**Example usage:**
-```bash
-./inspector backtest -short 5 -long 20 -capital 25000 -interval 50 -log backtest_logs.csv < historical_data.csv
-```
-
-#### 4. JSON Dynamic Strategies (`dynamic`)
+### 3. JSON Dynamic Strategies (`dynamic`)
 Design fully custom, mathematically sound trading algorithms without writing any Go logic. Define multiple $O(1)$ indicators dynamically and build complex rule sets out of simple JSON structures.
-
-**Use Case:** 
-If you are iterating through dozens of quantitative ideas (like pairing a fast/slow moving average trend detector alongside an RSI momentum filter), recompiling Go code for every permutation is painstakingly slow. The internal Dynamic Engine parses a JSON array of technical indicators into memory instantly, tracking them side-by-side perfectly. 
-*Note: Placing multiple conditions inside a `buy` or `sell` block intrinsically evaluates as a **Logical AND** (meaning every condition strictly must be true natively at a single bar close for the pipeline to generate a valid Signal).*
 
 **Create a Strategy configuration (`strategy.json`):**
 ```json
@@ -103,33 +83,30 @@ If you are iterating through dozens of quantitative ideas (like pairing a fast/s
 
 **Run the JSON engine natively:**
 ```bash
-./inspector dynamic -config strategy.json -capital 15000 -log strategy_logs.csv < historical_data.csv
+./inspector dynamic -mode live -symbol AAPL -config strategy.json -capital 15000 -log strategy_logs.csv
 ```
 
-#### 5. Interactive Visualization Dashboard
-After executing a backtest using the `-log` flag natively, utilize the built-in python charting interface to render Premium JavaScript Canvas views dynamically displaying your Total Portfolio Equity scaling over time.
+---
 
-```bash
-python3 visualize.py
-```
-*Note: Ensure your `-log` output is configured as `strategy_logs.csv` inside the `engine/` directory before running the renderer.*
+### 📈 Interactive Live Trading Terminal UI
+We've introduced a robust, zero-dependency HTML/JS **Trading Terminal UI** utilizing **Lightweight Charts** to monitor algorithmic operations interactively.
 
-#### 6. Dynamic Trading Terminal UI
-We've introduced a robust, zero-dependency HTML/JS **Trading Terminal UI** utilizing **Lightweight Charts** for deep, interactive chart analysis. The frontend dynamically parses `strategy_logs.csv` directly from the engine. It intelligently renders Candlesticks, multi-indicator overlays (e.g., SMAs automatically mapping to the main price pane), and oscillator indicators (e.g., RSI binding to an isolated sub-pane) without requiring frontend hardcoding. It concurrently plots exact Buy/Sell execution signals visually synced precisely to the candlestick timeline!
+The frontend dynamically parses your `strategy_logs.csv` export safely mapping Candlesticks, Multi-overlay indicators (SMAs grouping to the Main Pane), Oscillator bindings (RSI isolating properly automatically to a defined sub-pane), and perfectly chronologically matching Buy/Sell visual markers—without needing frontend coding!
+
+**Live Auto-Polling**: If you initiate the backend process using `-mode live`, the UI will implicitly issue a background cache-busting `setInterval` asynchronous fetch natively every 5 seconds. This guarantees real-time graph animations directly synchronized to Alpha Vantage API polling!
 
 **Usage:**
-1. Execute a backtest using the `-log` flag to output local logs (`strategy_logs.csv`).
-2. Serve the `engine/ui/` directory locally using any lightweight HTTP server (e.g., Python's `http.server` to prevent classic file:// CORS errors).
+1. Execute your chosen strategy, confirming the `-log strategy_logs.csv` definition exists locally inside `engine`.
+2. Serve the `engine/ui/` directory locally using an HTTP daemon manually to bypass generic browser CORS restrictions.
 ```bash
 cd engine/ui
 python3 -m http.server 8000
 ```
-3. Navigate to [http://localhost:8000](http://localhost:8000) in your browser to experience the dynamic, auto-rendered multi-pane interactive charts.
+3. Navigate to [http://localhost:8000](http://localhost:8000) in your browser. The panel will intelligently parse the log parameters and build the entire environment natively around it!
 
 ## 🧪 Validating The Engine
 
 We run rigorous Testing, Memory Profiling, and Look-Ahead Bias prevention natively.
-
 To execute the test suite (and visualize our strict zero-allocation integrity benchmarks):
 ```bash
 cd engine
