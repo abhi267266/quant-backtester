@@ -73,6 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
         rsiChart.resize(rsiChartContainer.clientWidth, rsiChartContainer.clientHeight);
     });
 
+    const indicatorSeriesMap = {};
+
     function renderData(bars, signals) {
         if (bars.length > 0) {
             candleSeries.setData(bars);
@@ -89,39 +91,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 const indData = bars.map(b => ({ time: b.time, value: b.indicators[indName] }))
                                    .filter(d => d.value !== undefined && !isNaN(d.value) && d.value > 0);
 
-                const isOscillator = indName.toLowerCase().includes('rsi') || indName.toLowerCase().includes('osc');
-                const targetChart = isOscillator ? rsiChart : mainChart;
-                
-                const series = targetChart.addLineSeries({
-                    color: colors[colorIdx++ % colors.length],
-                    lineWidth: 2,
-                    crosshairMarkerVisible: false,
-                    title: indName,
-                });
+                if (!indicatorSeriesMap[indName]) {
+                    const isOscillator = indName.toLowerCase().includes('rsi') || indName.toLowerCase().includes('osc');
+                    const targetChart = isOscillator ? rsiChart : mainChart;
+                    
+                    const series = targetChart.addLineSeries({
+                        color: colors[colorIdx++ % colors.length],
+                        lineWidth: 2,
+                        crosshairMarkerVisible: false,
+                        title: indName,
+                    });
 
-                if (isOscillator) {
-                    series.createPriceLine({ price: 70, color: '#ef5350', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false });
-                    series.createPriceLine({ price: 30, color: '#26a69a', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false });
+                    if (isOscillator) {
+                        series.createPriceLine({ price: 70, color: '#ef5350', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false });
+                        series.createPriceLine({ price: 30, color: '#26a69a', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false });
+                    }
+                    indicatorSeriesMap[indName] = series;
                 }
 
-                series.setData(indData);
+                indicatorSeriesMap[indName].setData(indData);
             });
         }
 
         if (signals.length > 0) {
             candleSeries.setMarkers(signals);
         }
-        mainChart.timeScale().fitContent();
+        // Disabled fitContent() on every render so the user can freely zoom/pan while live streaming.
+        // mainChart.timeScale().fitContent(); 
     }
 
-    // Auto-fetch data on load
-    fetch('../strategy_logs.csv')
-        .then(res => res.text())
-        .then(csvData => {
-            const { bars, signals } = parseLogs(csvData);
-            renderData(bars, signals);
-        })
-        .catch(err => console.error("Failed to load logs:", err));
+    function fetchData() {
+        const cacheBuster = new Date().getTime();
+        fetch(`../strategy_logs.csv?cb=${cacheBuster}`)
+            .then(res => res.text())
+            .then(csvData => {
+                const { bars, signals } = parseLogs(csvData);
+                renderData(bars, signals);
+            })
+            .catch(err => console.error("Failed to load logs:", err));
+    }
+
+    // Fetch immediately and then auto-poll every 5 seconds for live mode
+    fetchData();
+    setInterval(fetchData, 5000);
 
     // Setup Load Data file input (Optional fallback)
     loadBtn.addEventListener('click', () => {
