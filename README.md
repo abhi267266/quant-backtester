@@ -25,19 +25,26 @@ cd engine
 go build -o inspector main.go
 ```
 
-### 1. External API Data Execution (`-mode live` & `-mode api`)
+### 1. External API Data Execution (`-mode live`, `-mode api`, & `-mode yfinance`)
 
-The framework connects directly to the Alpha Vantage API securely leveraging real-time data ingestion without loading raw `.csv` blocks. *(You must have your `ALPHA_API_KEY` mapped inside `$PWD/engine/.env` for this to work natively.)* 
+The framework natively pipelines external historical archives securely leveraging direct third party endpoints bypassing CSV files entirely:
 
-**Date-Bounded Historical API Backtesting (`-mode api`)**
-Query a bounded historical limit mathematically filtered by the engine without entering continuous polling execution:
+**Yahoo Finance Unbounded Historical Limits (`-mode yfinance`)**
+Pull extremely dense historical ticks (20+ Years) without ever requiring an API Key or hitting Free Tier locks!
+```bash
+./inspector backtest -mode yfinance -symbol AAPL -start "2014-01-01" -end "2026-03-31" -log strategy_logs.csv -config strategy.json
+```
+*(Alternatively, execute the natively optimized `run.sh` script located explicitly at the repository root!)*
+
+**Alpha Vantage API Backtesting (`-mode api`)**
+Query a bounded historical limit matching Free Tier Alpha keys strictly bounded to 100-day lookbacks organically:
 ```bash
 ./inspector backtest -mode api -symbol AAPL -config strategy.json -start "2026-01-01" -end "2026-03-01" -log strategy_logs.csv
 ```
-> **Note on Alpha Vantage Free Tier Limits:** By default, Free Tier constraints restrict querying further back than ~100 trading days. Utilizing 20-year boundaries (e.g., `-start "2020..."`) requires modifying exactly to `outputsize=full` inside `alpha_vantage.go` and utilizing an unlocked Premium API Key!
+> **Note on Alpha Vantage Free Tier Limits:** By default, Free Tier constraints restrict querying further back than ~100 trading days. Utilizing older boundaries requires modifying exactly to `outputsize=full` inside `alpha_vantage.go` executing a Premium API Key.
 
 **Live Polling Stream (`-mode live`)**
-Streams real-time tick data continuously natively buffering the exact same `-mode api` subset first to "warm up" algorithmic structures naturally bypassing look-ahead bias, before pushing into an infinite `1-hour` sleep cycle gracefully respecting standard 25-request-per-day rate constraints:
+Streams real-time tick data continuously natively buffering the identical `-mode api` subset first to "warm up" algorithmic structures naturally bypassing look-ahead bias, before pushing into an infinite `1-hour` sleep cycle gracefully respecting standard 25-request-per-day rate constraints:
 ```bash
 ./inspector backtest -mode live -symbol AAPL -config strategy.json
 ```
