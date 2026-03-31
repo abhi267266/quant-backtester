@@ -2,7 +2,10 @@ module github.com/quant-backtester/engine
 
 go 1.25.1
 
-require github.com/olekukonko/tablewriter v1.1.4
+require (
+	github.com/joho/godotenv v1.5.1
+	github.com/olekukonko/tablewriter v1.1.4
+)
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
